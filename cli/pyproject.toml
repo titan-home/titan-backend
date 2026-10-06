@@ -3,7 +3,7 @@ name = "titan-cli"
 version = "0.1.0"
 description = "The titan command: a client of the TITAN API."
 requires-python = ">=3.12"
-dependencies = ["httpx"]
+dependencies = ["attrs", "httpx", "typing-extensions"]
 
 [project.scripts]
 titan = "titan_cli.main:main"
