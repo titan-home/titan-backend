@@ -26,6 +26,8 @@ known-first-party = ["titan_server", "titan_cli"]
 
 [tool.mypy]
 strict = true
+# --strict leaves out the check for a variable that may be unset.
+enable_error_code = ["possibly-undefined"]
 files = ["server", "cli"]
 mypy_path = ["server/src", "cli/src"]
 explicit_package_bases = true
