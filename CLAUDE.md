@@ -31,6 +31,11 @@ the node), `cli/` is `titan-cli` (the `titan` command, an HTTP client only).
 | Types | `uv run mypy` |
 | Tests | `uv run pytest` |
 | Run the CLI | `uv run titan` |
+| Start api and PostgreSQL (needs Docker) | `docker compose up --build --wait` |
+
+`compose.yaml` is the development stack, built from source; it needs the
+database password in `.secrets/db_password` (see the README). The node's
+own compose file lives in `titan-node`.
 
 uv takes no package version younger than 14 days (`exclude-newer` in
 `pyproject.toml`).
@@ -58,3 +63,5 @@ The commands are settled as the code arrives.
 6. If a tool changed: its access-check and undo tests pass.
 7. If Markdown or the `shared/` pointer changed:
    `python3 shared/scripts/check_links.py .` prints nothing.
+8. If `Dockerfile` or `compose.yaml` changed: `docker compose up --build --wait`
+   brings the stack up healthy.

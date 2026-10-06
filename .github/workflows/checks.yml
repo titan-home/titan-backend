@@ -25,6 +25,8 @@ jobs:
         run: python3 shared/scripts/check_links.py .
       - name: Set up uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.17" # the same uv as in the Dockerfile, at least 14 days old
       - name: Install dependencies from the lock file
         run: uv sync --locked
       - name: Check formatting
@@ -35,3 +37,12 @@ jobs:
         run: uv run mypy
       - name: Run tests
         run: uv run pytest
+      - name: Start the stack and wait until it is healthy
+        run: |
+          mkdir -p .secrets
+          (umask 077; openssl rand -hex 32 > .secrets/db_password)
+          docker compose up --build --wait
+          curl --fail --silent http://127.0.0.1:8000/health
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes

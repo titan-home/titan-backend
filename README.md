@@ -16,7 +16,8 @@ product, architecture and rules shared by every TITAN repository are in the
 
 ## Status
 
-Build-plan stage 1 has started: the workspace skeleton and a health endpoint.
+Build-plan stage 1 has started: the workspace skeleton, a health endpoint
+and a development stack with PostgreSQL.
 See the [build plan](shared/docs/roadmap/plan.md).
 
 ## Layout
@@ -35,6 +36,18 @@ uv sync              # install both packages and the dev tools
 uv run pytest        # tests
 uv run titan --help  # the CLI
 ```
+
+To run api and PostgreSQL in Docker, create the database password once, then
+start the stack:
+
+```sh
+mkdir -p .secrets
+(umask 077; openssl rand -hex 32 > .secrets/db_password)
+docker compose up --build --wait
+curl http://127.0.0.1:8000/health
+```
+
+`docker compose down` stops it; add `--volumes` to delete the database too.
 
 ## Getting the code
 
