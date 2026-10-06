@@ -11,6 +11,16 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-24.04
+    services:
+      postgres:
+        # The same image as compose.yaml
+        image: pgvector/pgvector:0.8.6-pg18-trixie@sha256:78bf48b801e792f99e3ac62b5036fd3876e9be48afda16c1e331af1c75ceb2ff
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ["55432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      TITAN_TEST_DATABASE_URL: postgresql+psycopg://postgres:test@127.0.0.1:55432/postgres
     steps:
       - name: Check out the repository with shared/
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,8 +49,9 @@ jobs:
         run: uv run pytest
       - name: Start the stack and wait until it is healthy
         run: |
-          mkdir -p .secrets
-          (umask 077; openssl rand -hex 32 > .secrets/db_password)
+          mkdir -m 700 .secrets
+          openssl rand -hex 32 > .secrets/db_password
+          chmod 644 .secrets/db_password
           docker compose up --build --wait
           curl --fail --silent http://127.0.0.1:8000/health
       - name: Stop the stack

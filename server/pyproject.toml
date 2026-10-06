@@ -3,7 +3,16 @@ name = "titan-server"
 version = "0.1.0"
 description = "The TITAN API and worker that run on the node."
 requires-python = ">=3.12"
-dependencies = ["fastapi", "uvicorn"]
+dependencies = [
+    "alembic>=1.20.0",
+    "fastapi",
+    "psycopg[binary]>=3.3.6",
+    "sqlalchemy[asyncio]>=2.0.54",
+    "uvicorn",
+]
+
+[project.scripts]
+titan-admin = "titan_server.admin:main"
 
 [build-system]
 requires = ["uv_build"]

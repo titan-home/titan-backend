@@ -22,7 +22,7 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF"]
 known-first-party = ["titan_server", "titan_cli"]
 
 [tool.ruff.lint.per-file-ignores]
-"*/tests/*" = ["S101"]
+"*/tests/*" = ["S101", "S105", "S106"]
 
 [tool.mypy]
 strict = true
@@ -33,3 +33,22 @@ explicit_package_bases = true
 [tool.pytest.ini_options]
 testpaths = ["server/tests", "cli/tests"]
 addopts = ["--import-mode=importlib"]
+
+
+# Alembic for development: `uv run alembic revision --autogenerate -m "..."`.
+# The node runs migrations with `titan-admin migrate`, which needs no config
+# file (see titan_server.db.alembic_config).
+[tool.alembic]
+script_location = "%(here)s/server/src/titan_server/migrations"
+
+[[tool.alembic.post_write_hooks]]
+name = "ruff_fix"
+type = "module"
+module = "ruff"
+options = "check --fix REVISION_SCRIPT_FILENAME"
+
+[[tool.alembic.post_write_hooks]]
+name = "ruff_format"
+type = "module"
+module = "ruff"
+options = "format REVISION_SCRIPT_FILENAME"

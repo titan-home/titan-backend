@@ -9,6 +9,20 @@ services:
     mem_limit: 512m
     ports: ["127.0.0.1:8000:8000"]
     depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Applies pending migrations, then exits; the api starts only after it.
+  migrate:
+    build: .
+    command: ["titan-admin", "migrate"]
+    read_only: true
+    mem_limit: 256m
+    environment:
+      TITAN_DATABASE_URL: postgresql+psycopg://titan@db/titan
+      TITAN_DATABASE_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    depends_on:
       db:
         condition: service_healthy
 

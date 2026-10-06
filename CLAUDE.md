@@ -31,7 +31,11 @@ the node), `cli/` is `titan-cli` (the `titan` command, an HTTP client only).
 | Types | `uv run mypy` |
 | Tests | `uv run pytest` |
 | Run the CLI | `uv run titan` |
+| Write a migration from the models | `uv run alembic revision --autogenerate -m "..."` |
 | Start api and PostgreSQL (needs Docker) | `docker compose up --build --wait` |
+
+Database tests need `TITAN_TEST_DATABASE_URL`; see the README. On the node,
+`titan-admin migrate` applies migrations.
 
 `compose.yaml` is the development stack, built from source; it needs the
 database password in `.secrets/db_password` (see the README). The node's
