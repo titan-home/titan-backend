@@ -3,12 +3,14 @@
 import enum
 import uuid
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from claude_agent_sdk import SdkMcpTool
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from titan_server.domains.chat.models import ToolCallRecord
 
 
 class ActionClass(enum.StrEnum):
@@ -32,10 +34,12 @@ class ActionClass(enum.StrEnum):
 
 @dataclass(frozen=True)
 class ToolContext:
-    """Whom a call acts for and the session it works in."""
+    """Whom a turn's calls act for, the session they work in, the calls made."""
 
     session: AsyncSession
     user_id: uuid.UUID
+    # Every call that ran in this turn, in order, for the reply to keep.
+    calls: list[ToolCallRecord] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -66,7 +70,14 @@ def sdk_tool(tool: Tool[Any], context: ToolContext) -> SdkMcpTool[Any]:
             tool_input = tool.input_model.model_validate(arguments)
         except ValidationError as error:
             return {"content": [{"type": "text", "text": str(error)}], "is_error": True}
+        record: ToolCallRecord = {
+            "name": tool.name,
+            "summary": tool.summary(tool_input),
+            "ok": False,
+        }
+        context.calls.append(record)
         text = await tool.run(context, tool_input)
+        record["ok"] = True
         return {"content": [{"type": "text", "text": text}]}
 
     return SdkMcpTool(
