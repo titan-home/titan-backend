@@ -1,0 +1,64 @@
+"""Tests for how a Tool reaches the Agent SDK (decision #98)."""
+
+import uuid
+from typing import Any, cast
+
+import pytest
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from titan_server.agent.tool import ActionClass, Tool, ToolContext, sdk_tool
+
+pytestmark = pytest.mark.anyio
+
+
+class EchoInput(BaseModel):
+    word: str = Field(min_length=1, description="The word to echo.")
+
+
+calls: list[tuple[ToolContext, EchoInput]] = []
+
+
+async def echo_run(context: ToolContext, echo_input: EchoInput) -> str:
+    calls.append((context, echo_input))
+    return f"echo {echo_input.word}"
+
+
+ECHO = Tool(
+    name="echo",
+    description="Repeat a word.",
+    action_class=ActionClass.READ,
+    input_model=EchoInput,
+    summary=lambda echo_input: f"Echoing {echo_input.word}",
+    run=echo_run,
+)
+CONTEXT = ToolContext(session=cast(AsyncSession, None), user_id=uuid.uuid4())
+
+
+@pytest.fixture(autouse=True)
+def no_calls() -> None:
+    calls.clear()
+
+
+def test_the_model_sees_the_name_description_and_input_schema() -> None:
+    sdk = sdk_tool(ECHO, CONTEXT)
+
+    assert (sdk.name, sdk.description) == ("echo", "Repeat a word.")
+    assert sdk.input_schema == EchoInput.model_json_schema()
+
+
+async def test_a_valid_call_runs_for_the_context_and_returns_text() -> None:
+    result = await sdk_tool(ECHO, CONTEXT).handler({"word": "milk"})
+
+    assert result == {"content": [{"type": "text", "text": "echo milk"}]}
+    assert calls == [(CONTEXT, EchoInput(word="milk"))]
+
+
+@pytest.mark.parametrize("arguments", [{}, {"word": ""}, {"word": 5}])
+async def test_invalid_input_is_an_error_for_the_model_and_runs_nothing(
+    arguments: dict[str, Any],
+) -> None:
+    result = await sdk_tool(ECHO, CONTEXT).handler(arguments)
+
+    assert result["is_error"] is True
+    assert calls == []
