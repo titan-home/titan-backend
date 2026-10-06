@@ -40,6 +40,9 @@ addopts = ["--import-mode=importlib"]
 # file (see titan_server.db.alembic_config).
 [tool.alembic]
 script_location = "%(here)s/server/src/titan_server/migrations"
+# The date sorts the files by creation; the order of applying them comes
+# from down_revision inside each file.
+file_template = "%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s"
 
 [[tool.alembic.post_write_hooks]]
 name = "ruff_fix"
