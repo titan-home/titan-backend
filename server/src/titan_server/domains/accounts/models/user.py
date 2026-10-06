@@ -8,6 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from titan_server.db import Base
 
+MAX_USERNAME_LENGTH = 64
+
 
 class User(Base):
     """A person who can sign in; is_owner marks the one who installed the node."""
@@ -15,7 +17,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    username: Mapped[str] = mapped_column(String(64), unique=True)
+    username: Mapped[str] = mapped_column(String(MAX_USERNAME_LENGTH), unique=True)
     password_hash: Mapped[str]
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

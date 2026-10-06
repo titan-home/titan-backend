@@ -33,6 +33,7 @@ the node), `cli/` is `titan-cli` (the `titan` command, an HTTP client only).
 | Run the CLI | `uv run titan` |
 | Write a migration from the models | `uv run alembic revision --autogenerate -m "..."` |
 | Start api and PostgreSQL (needs Docker) | `docker compose up --build --wait` |
+| Create the owner in the running stack | `docker compose run --rm migrate titan-admin create-owner` |
 
 Database tests need `TITAN_TEST_DATABASE_URL`; see the README. On the node,
 `titan-admin migrate` applies migrations.

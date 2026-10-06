@@ -5,6 +5,7 @@ from pathlib import Path
 
 from alembic.config import Config
 from sqlalchemy.engine import URL, make_url
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 MIGRATIONS = Path(__file__).parent / "migrations"
@@ -26,6 +27,11 @@ def database_url() -> URL:
     if password_file:
         url = url.set(password=Path(password_file).read_text().strip())
     return url
+
+
+def create_engine() -> AsyncEngine:
+    """Connect to the database named by the environment."""
+    return create_async_engine(database_url())
 
 
 def alembic_config(url: URL) -> Config:

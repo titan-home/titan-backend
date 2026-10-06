@@ -82,7 +82,13 @@ docker compose up --build --wait
 curl http://127.0.0.1:8000/health
 ```
 
-`migrate` applies pending migrations before the api starts.
+`migrate` applies pending migrations before the api starts. To create the
+owner, run the admin command in a one-off container; it asks for the username
+and, twice and without echo, the password:
+
+```sh
+docker compose run --rm migrate titan-admin create-owner
+```
 
 `docker compose down` stops it; add `--volumes` to delete the database too.
 

@@ -5,6 +5,7 @@ description = "The TITAN API and worker that run on the node."
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.20.0",
+    "argon2-cffi>=25.1.0",
     "fastapi",
     "psycopg[binary]>=3.3.6",
     "sqlalchemy[asyncio]>=2.0.54",
