@@ -16,8 +16,8 @@ product, architecture and rules shared by every TITAN repository are in the
 
 ## Status
 
-Build-plan stage 1 has started: the workspace skeleton, a health endpoint
-and a development stack with PostgreSQL.
+Build-plan stage 2 is under way: the agent, end to end. Stage 1 is done:
+the development stack, the owner, `titan login` and `titan whoami`.
 See the [build plan](shared/docs/roadmap/plan.md).
 
 ## Layout
@@ -91,6 +91,21 @@ docker compose run --rm migrate titan-admin create-owner
 ```
 
 `docker compose down` stops it; add `--volumes` to delete the database too.
+
+### Talking to Claude
+
+A chat turn runs Claude Code through the Agent SDK with the owner's
+subscription ([decision #7](shared/docs/decisions/README.md#register)). The
+api reads:
+
+| Variable | What it is |
+|---|---|
+| `TITAN_CLAUDE_TOKEN_FILE` | A file holding the OAuth token that `claude setup-token` prints |
+| `TITAN_STRONG_MODEL` | The model for conversation; `opus` unless set |
+
+Claude Code starts with only the variables it needs, never the api's own
+(`agent/clean_claude.py`). The regular tests never call Claude; they play
+it with scripted replies.
 
 ## Getting the code
 
