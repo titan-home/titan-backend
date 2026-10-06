@@ -31,6 +31,7 @@ the node), `cli/` is `titan-cli` (the `titan` command, an HTTP client only).
 | Types | `uv run mypy` |
 | Tests | `uv run pytest` |
 | Run the CLI | `uv run titan` |
+| Export the API contract into `titan-shared` | `uv run python -m titan_server.api.contract > ../titan-shared/contracts/openapi.json` |
 | Write a migration from the models | `uv run alembic revision --autogenerate -m "..."` |
 | Start api and PostgreSQL (needs Docker) | `docker compose up --build --wait` |
 | Create the owner in the running stack | `docker compose run --rm migrate titan-admin create-owner` |
@@ -62,7 +63,8 @@ The commands are settled as the code arrives.
 2. `uv run mypy` passes.
 3. `uv run pytest` passes for the packages the commit touches (by path or
    `-k`); database tests need a running PostgreSQL. The full suite runs in CI.
-4. If the API changed: the contract check against `shared/contracts/` passes.
+4. If the API changed: the contract check against `shared/contracts/` passes:
+   `uv run pytest server/tests/test_contract.py`.
 5. If a migration was added: it applies to a fresh database and to one at the
    previous version.
 6. If a tool changed: its access-check and undo tests pass.

@@ -4,6 +4,10 @@ import unicodedata
 
 import argon2
 
+# Hashing a huge password is a cheap way to load the server; no real
+# password comes near this.
+MAX_PASSWORD_LENGTH = 1024
+
 _PASSWORD_HASHER = argon2.PasswordHasher()
 _EMPTY_HASH = _PASSWORD_HASHER.hash("")
 
