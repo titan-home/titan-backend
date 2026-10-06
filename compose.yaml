@@ -8,6 +8,10 @@ services:
     tmpfs: [/tmp]
     mem_limit: 512m
     ports: ["127.0.0.1:8000:8000"]
+    environment:
+      TITAN_DATABASE_URL: postgresql+psycopg://titan@db/titan
+      TITAN_DATABASE_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
     depends_on:
       migrate:
         condition: service_completed_successfully
