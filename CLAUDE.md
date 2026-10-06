@@ -42,3 +42,5 @@ The commands are settled as the code arrives.
 5. If a migration was added: it applies to a fresh database and to one at the
    previous version.
 6. If a tool changed: its access-check and undo tests pass.
+7. If Markdown or the `shared/` pointer changed:
+   `python3 shared/scripts/check_links.py .` prints nothing.
