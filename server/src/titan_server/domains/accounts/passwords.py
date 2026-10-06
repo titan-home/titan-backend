@@ -1,9 +1,17 @@
 """Password hashing with Argon2id (development rules, 11)."""
 
+import unicodedata
+
+import argon2
+
+_PASSWORD_HASHER = argon2.PasswordHasher()
+_EMPTY_HASH = _PASSWORD_HASHER.hash("")
+
 
 def hash_password(password: str) -> str:
     """Return the Argon2id hash of password, with its salt and parameters."""
-    raise NotImplementedError
+    normalized_password = unicodedata.normalize("NFKD", password)
+    return _PASSWORD_HASHER.hash(normalized_password)
 
 
 def verify_password(password_hash: str | None, password: str) -> bool:
@@ -13,4 +21,12 @@ def verify_password(password_hash: str | None, password: str) -> bool:
     a real user, so the time of the answer does not tell whether a username
     exists (accounts.md, sign in, criterion 2).
     """
-    raise NotImplementedError
+    try:
+        normalized_password = unicodedata.normalize("NFKD", password)
+        if password_hash is not None:
+            return _PASSWORD_HASHER.verify(password_hash, normalized_password)
+        else:
+            _PASSWORD_HASHER.verify(_EMPTY_HASH, normalized_password)
+            return False
+    except argon2.exceptions.VerifyMismatchError:
+        return False
