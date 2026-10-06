@@ -23,6 +23,8 @@ Two packages in one uv workspace ([decision #85](shared/docs/decisions/README.md
 `server/` is `titan-server` (api, worker, domains, agent, admin commands on
 the node), `cli/` is `titan-cli` (the `titan` command, an HTTP client only).
 `titan-cli` never imports `titan-server`.
+Its API client in `cli/src/titan_cli/client/` is generated from the contract
+([decision #93](shared/docs/decisions/README.md#register)); never edit it by hand.
 
 | What | Command |
 |---|---|
@@ -32,6 +34,7 @@ the node), `cli/` is `titan-cli` (the `titan` command, an HTTP client only).
 | Tests | `uv run pytest` |
 | Run the CLI | `uv run titan` |
 | Export the API contract into `titan-shared` | `uv run python -m titan_server.api.contract > ../titan-shared/contracts/openapi.json` |
+| Regenerate the CLI's API client from `shared/contracts/` | `uv run openapi-python-client generate --meta none --fail-on-warning --path shared/contracts/openapi.json --config cli/openapi-client.yaml --output-path cli/src/titan_cli/client --overwrite` |
 | Write a migration from the models | `uv run alembic revision --autogenerate -m "..."` |
 | Start api and PostgreSQL (needs Docker) | `docker compose up --build --wait` |
 | Create the owner in the running stack | `docker compose run --rm migrate titan-admin create-owner` |

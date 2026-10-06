@@ -8,12 +8,12 @@ members = ["server", "cli"]
 exclude-newer = "14 days"
 
 [dependency-groups]
-dev = ["httpx", "mypy", "pytest", "ruff"]
+dev = ["httpx", "mypy", "openapi-python-client", "pytest", "ruff"]
 
 [tool.ruff]
 line-length = 88
 target-version = "py312"
-extend-exclude = ["shared"]
+extend-exclude = ["shared", "cli/src/titan_cli/client"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF"]
@@ -31,6 +31,12 @@ enable_error_code = ["possibly-undefined"]
 files = ["server", "cli"]
 mypy_path = ["server/src", "cli/src"]
 explicit_package_bases = true
+
+# The API client is generated (decision #93); its own code is not ours to fix,
+# but every use of it is still type-checked.
+[[tool.mypy.overrides]]
+module = "titan_cli.client.*"
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["server/tests", "cli/tests"]

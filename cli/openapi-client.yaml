@@ -1,0 +1,9 @@
+# openapi-python-client settings for cli/src/titan_cli/client (decision #93).
+# --isolated: the generated code comes out the same wherever it is written,
+# so the test that regenerates it into a temporary folder can compare.
+post_hooks:
+  # Absolute imports, like the rest of our code; ruff finds the package from
+  # the __init__.py files, so the output folder must sit inside titan_cli.
+  - "ruff check --isolated --no-cache --select TID252 --config \"lint.flake8-tidy-imports.ban-relative-imports='all'\" --fix --unsafe-fixes ."
+  - "ruff check --isolated --no-cache --fix --extend-select=I ."
+  - "ruff format --isolated --no-cache ."
