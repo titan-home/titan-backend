@@ -1,0 +1,13 @@
+[project]
+name = "titan-cli"
+version = "0.1.0"
+description = "The titan command: a client of the TITAN API."
+requires-python = ">=3.12"
+dependencies = ["httpx"]
+
+[project.scripts]
+titan = "titan_cli.main:main"
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
