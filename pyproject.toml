@@ -1,0 +1,35 @@
+# The uv workspace: titan-server runs on the node, titan-cli on the owner's
+# machines (decision #85).
+[tool.uv.workspace]
+members = ["server", "cli"]
+
+[tool.uv]
+# New versions wait 14 days before we take them (development rules, section 11).
+exclude-newer = "14 days"
+
+[dependency-groups]
+dev = ["httpx", "mypy", "pytest", "ruff"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+extend-exclude = ["shared"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["titan_server", "titan_cli"]
+
+[tool.ruff.lint.per-file-ignores]
+"*/tests/*" = ["S101"]
+
+[tool.mypy]
+strict = true
+files = ["server", "cli"]
+mypy_path = ["server/src", "cli/src"]
+explicit_package_bases = true
+
+[tool.pytest.ini_options]
+testpaths = ["server/tests", "cli/tests"]
+addopts = ["--import-mode=importlib"]

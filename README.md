@@ -16,7 +16,25 @@ product, architecture and rules shared by every TITAN repository are in the
 
 ## Status
 
-Not started. Build-plan stages 1–3 and 6. See the [build plan](shared/docs/roadmap/plan.md).
+Build-plan stage 1 has started: the workspace skeleton and a health endpoint.
+See the [build plan](shared/docs/roadmap/plan.md).
+
+## Layout
+
+| Folder | Package | Runs on |
+|---|---|---|
+| `server/` | `titan-server`: api, worker, domains, agent, admin commands | The node, in containers |
+| `cli/` | `titan-cli`: the `titan` command | The owner's machines |
+
+## Development
+
+Needs [uv](https://docs.astral.sh/uv/). Then:
+
+```sh
+uv sync              # install both packages and the dev tools
+uv run pytest        # tests
+uv run titan --help  # the CLI
+```
 
 ## Getting the code
 

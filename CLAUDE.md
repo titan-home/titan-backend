@@ -19,7 +19,21 @@ repository; change `titan-shared` through its own pull request.
 - Python 3.12+ with `uv`; `ruff format`, `ruff check`, `mypy --strict`, `pytest` (database tests against real PostgreSQL).
 - The API must serve exactly the contract in `shared/contracts/`.
 
-Commands are added here as the code arrives.
+Two packages in one uv workspace ([decision #85](shared/docs/decisions/README.md#register)):
+`server/` is `titan-server` (api, worker, domains, agent, admin commands on
+the node), `cli/` is `titan-cli` (the `titan` command, an HTTP client only).
+`titan-cli` never imports `titan-server`.
+
+| What | Command |
+|---|---|
+| Install everything for development | `uv sync` |
+| Format, lint | `uv run ruff format .`, `uv run ruff check .` |
+| Types | `uv run mypy` |
+| Tests | `uv run pytest` |
+| Run the CLI | `uv run titan` |
+
+uv takes no package version younger than 14 days (`exclude-newer` in
+`pyproject.toml`).
 
 ## Rules specific to this repository
 
