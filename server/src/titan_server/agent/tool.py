@@ -75,9 +75,11 @@ def sdk_tool(tool: Tool[Any], context: ToolContext) -> SdkMcpTool[Any]:
             "summary": tool.summary(tool_input),
             "ok": False,
         }
-        context.calls.append(record)
-        text = await tool.run(context, tool_input)
-        record["ok"] = True
+        try:
+            text = await tool.run(context, tool_input)
+            record["ok"] = True
+        finally:
+            context.calls.append(record)
         return {"content": [{"type": "text", "text": text}]}
 
     return SdkMcpTool(
