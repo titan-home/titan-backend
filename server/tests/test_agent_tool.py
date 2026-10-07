@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from titan_server.agent.tool import Tool, ToolContext, sdk_tool
+from titan_server.agent.tool import Tool, ToolContext, run_call, sdk_tool
 from titan_server.domains.accounts.models import User
 from titan_server.domains.audit.models import (
     ActionClass,
@@ -185,3 +185,36 @@ async def test_a_denied_call_does_not_run_and_the_model_is_told(
     assert (entry.mode, entry.status) == (Mode.DENY, EntryStatus.DENIED)
     assert result["is_error"] is True
     assert "not allowed" in result["content"][0]["text"]
+
+
+def new_entry(context: ToolContext) -> AuditEntry:
+    """An entry for a call of ECHO, in the session as the handler leaves it."""
+    entry = AuditEntry(
+        id=uuid.uuid4(),
+        user_id=context.user_id,
+        tool="echo",
+        summary="Echoing milk",
+        mode=Mode.AUTO,
+        action_class=ActionClass.READ,
+        input={"word": "milk"},
+        status=EntryStatus.FAILED,
+    )
+    context.session.add(entry)
+    return entry
+
+
+async def test_run_call_runs_the_tool_and_records_it(context: ToolContext) -> None:
+    entry = new_entry(context)
+
+    text = await run_call(ECHO, context, entry, EchoInput(word="milk"))
+
+    assert text == "echo milk"
+    assert entry.status == EntryStatus.DONE
+    assert context.calls == [
+        {
+            "name": "echo",
+            "summary": "Echoing milk",
+            "ok": True,
+            "entry_id": str(entry.id),
+        }
+    ]

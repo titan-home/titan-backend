@@ -59,28 +59,30 @@ class Tool[Input: BaseModel]:
     run: Callable[[ToolContext, Input], Awaitable[str]]
 
 
+async def run_call(
+    tool: Tool[Any], context: ToolContext, entry: AuditEntry, tool_input: BaseModel
+) -> str:
+    """Run a call of tool for its entry, record how it went, return the tool's text."""
+    record: ToolCallRecord = {
+        "name": tool.name,
+        "summary": entry.summary,
+        "ok": False,
+        "entry_id": str(entry.id),
+    }
+    # What the run changes in Audited objects becomes the entry's changes.
+    start_call(context.session, entry)
+    try:
+        text = await tool.run(context, tool_input)
+        entry.status = EntryStatus.DONE
+        record["ok"] = True
+    finally:
+        await finish_call(context.session)
+        context.calls.append(record)
+    return text
+
+
 def sdk_tool(tool: Tool[Any], context: ToolContext) -> SdkMcpTool[Any]:
     """The tool as the Agent SDK takes it, acting for context's user."""
-
-    async def _run_tool(
-        audit_entry: AuditEntry, summary: str, tool_input: Any
-    ) -> dict[str, Any]:
-        record: ToolCallRecord = {
-            "name": tool.name,
-            "summary": summary,
-            "ok": False,
-            "entry_id": str(audit_entry.id),
-        }
-        # What the run changes in Audited objects becomes the entry's changes.
-        start_call(context.session, audit_entry)
-        try:
-            text = await tool.run(context, tool_input)
-            audit_entry.status = EntryStatus.DONE
-            record["ok"] = True
-        finally:
-            await finish_call(context.session)
-            context.calls.append(record)
-        return {"content": [{"type": "text", "text": text}]}
 
     async def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -137,7 +139,8 @@ def sdk_tool(tool: Tool[Any], context: ToolContext) -> SdkMcpTool[Any]:
                     ]
                 }
             case Mode.AUTO | Mode.AUTO_UNDO:
-                return await _run_tool(audit_entry, summary, tool_input)
+                text = await run_call(tool, context, audit_entry, tool_input)
+                return {"content": [{"type": "text", "text": text}]}
             case _:
                 assert_never(mode)
 
