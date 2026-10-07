@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from titan_server.domains.accounts.authentication import authenticate
 from titan_server.domains.accounts.models import Device
@@ -21,6 +21,17 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
 # failed commit answers with an error instead of a success that did not stick.
 Session = Annotated[AsyncSession, Depends(get_session, scope="function")]
 """Declare `session: Session` in a route to get the request's database session."""
+
+
+def background_sessions(request: Request) -> async_sessionmaker[AsyncSession]:
+    """Open sessions for work that outlives the request, such as a chat turn."""
+    return async_sessionmaker(request.app.state.engine)
+
+
+BackgroundSessions = Annotated[
+    async_sessionmaker[AsyncSession], Depends(background_sessions)
+]
+"""Declare `sessions: BackgroundSessions` to open sessions of your own."""
 
 
 bearer = HTTPBearer(auto_error=False, description="The device token, titan_v1_…")

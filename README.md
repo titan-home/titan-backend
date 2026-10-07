@@ -102,6 +102,7 @@ api reads:
 |---|---|
 | `TITAN_CLAUDE_TOKEN_FILE` | A file holding the OAuth token that `claude setup-token` prints |
 | `TITAN_STRONG_MODEL` | The model for conversation; `opus` unless set |
+| `TITAN_DEFAULT_MAX_MESSAGE_LENGTH` | The longest chat message a user may send, in characters, unless the user set their own limit; 20000 unless set |
 
 Claude Code starts with only the variables it needs, never the api's own
 (`agent/clean_claude.py`). The regular tests never call Claude; they play
