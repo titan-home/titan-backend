@@ -8,7 +8,8 @@ import pytest
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from titan_server.agent.tool import ActionClass, Tool, ToolContext, sdk_tool
+from titan_server.agent.tool import Tool, ToolContext, sdk_tool
+from titan_server.domains.audit.models import ActionClass
 
 pytestmark = pytest.mark.anyio
 

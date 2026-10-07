@@ -1,6 +1,5 @@
 """What every tool declares (development rules, section 14; decision #98)."""
 
-import enum
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -10,26 +9,8 @@ from claude_agent_sdk import SdkMcpTool
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from titan_server.domains.audit.models import ActionClass
 from titan_server.domains.chat.models import ToolCallRecord
-
-
-class ActionClass(enum.StrEnum):
-    """How much a call can change, which sets its default mode (decision #38).
-
-    A user can change the mode of one class in one domain (decision #10); the
-    policy that applies the modes comes in stage 3.
-    """
-
-    # Only looks: finding tasks, reading a note. Runs at once.
-    READ = "read"
-    # Changes the user's own data on the node and can be taken back: creating
-    # or editing a task. Runs at once, and the reply shows an Undo.
-    WRITE_INTERNAL = "write-internal"
-    # Reaches outside the node and cannot be taken back: sending a message,
-    # calling another service. Waits for the user's approval.
-    EXTERNAL = "external"
-    # Destroys data for good: emptying the trash. Waits for the user's approval.
-    DESTRUCTIVE = "destructive"
 
 
 @dataclass(frozen=True)
