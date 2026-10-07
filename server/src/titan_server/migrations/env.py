@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from titan_server.db import Base, database_url
 from titan_server.domains.accounts import models  # noqa: F401  registers the tables
+from titan_server.domains.chat import models as chat_models  # noqa: F401
+from titan_server.domains.tasks import models as task_models  # noqa: F401
 
 config = context.config
 # titan-admin and the tests pass the URL; the alembic command reads the environment.
