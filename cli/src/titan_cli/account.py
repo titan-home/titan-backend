@@ -16,6 +16,8 @@ from titan_cli.client.models import (
 )
 from titan_cli.node import CliError, api_client, login_path
 
+TOKEN_REJECTED = "this device's token no longer works; run titan login URL again"  # noqa: S105  a message, not a token
+
 
 @dataclass
 class Login:
@@ -61,6 +63,14 @@ def _read_login() -> Login | None:
         ) from None
 
 
+def signed_in() -> Login:
+    """The node and token this device signed in with; CliError if it has not."""
+    saved = _read_login()
+    if saved is None:
+        raise CliError("not signed in on this device; run titan login URL first")
+    return saved
+
+
 def _save_login(saved: Login) -> None:
     login_path().parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     fd = os.open(login_path(), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
@@ -101,17 +111,13 @@ def login(url: str, name: str, dev: bool) -> None:
 
 def whoami() -> None:
     """Print who is signed in on this device and the device's name."""
-    saved = _read_login()
-    if saved is None:
-        raise CliError("not signed in on this device; run titan login URL first")
+    saved = signed_in()
 
     result = whoami_api.sync(client=api_client(saved.url, saved.token))
 
     if not isinstance(result, WhoamiOut):
         if isinstance(result, Problem) and result.status == 401:
-            raise CliError(
-                "this device's token no longer works; run titan login URL again"
-            )
+            raise CliError(TOKEN_REJECTED)
         reason = result.title if isinstance(result, Problem) else "no answer"
         raise CliError(f"the node refused to tell who is signed in: {reason}")
 

@@ -8,6 +8,7 @@ from importlib.metadata import version
 import httpx
 
 from titan_cli.account import login, whoami
+from titan_cli.chat import chat
 from titan_cli.client.errors import UnexpectedStatus
 from titan_cli.node import CliError
 
@@ -36,11 +37,17 @@ def main(argv: list[str] | None = None) -> None:
         help="allow plain http to localhost, for the development stack",
     )
     commands.add_parser("whoami", help="show who is signed in on this device")
+    chat_parser = commands.add_parser(
+        "chat", help="send a message in a new thread and print the reply"
+    )
+    chat_parser.add_argument("text", help="the message, quoted")
     arguments = parser.parse_args(argv)
 
     try:
         if arguments.command == "login":
             login(arguments.url, arguments.name, arguments.dev)
+        elif arguments.command == "chat":
+            chat(arguments.text)
         else:
             whoami()
     except CliError as error:
