@@ -26,7 +26,7 @@ async def call(
     session: AsyncSession, user: User, arguments: dict[str, Any]
 ) -> dict[str, Any]:
     """Call the tool the way the Agent SDK does, for user."""
-    context = ToolContext(session=session, user_id=user.id)
+    context = ToolContext(session=session, user_id=user.id, thread_id=None)
     return await sdk_tool(create_task, context).handler(arguments)
 
 

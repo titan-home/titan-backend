@@ -3,7 +3,7 @@
 import enum
 import uuid
 from datetime import datetime
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -20,11 +20,14 @@ class Role(enum.StrEnum):
 
 
 class ToolCallRecord(TypedDict):
-    """What a reply keeps of one tool call; the audit log (stage 3) keeps it all."""
+    """What a reply keeps of one tool call; the audit log keeps it all."""
 
     name: str
     summary: str
     ok: bool
+    # The call's audit entry (decision #112); replies stored before the audit
+    # log have none.
+    entry_id: NotRequired[str]
 
 
 class Thread(Base):
