@@ -4,10 +4,12 @@ import argparse
 import socket
 import sys
 from importlib.metadata import version
+from uuid import UUID
 
 import httpx
 
 from titan_cli.account import login, whoami
+from titan_cli.approvals import approvals_list, approve, reject
 from titan_cli.chat import chat
 from titan_cli.client.errors import UnexpectedStatus
 from titan_cli.client.models import ActionClass, Domain, Mode
@@ -71,6 +73,17 @@ def main(argv: list[str] | None = None) -> None:
     reset_parser.add_argument(
         "action_class", metavar="class", choices=classes, help=", ".join(classes)
     )
+    commands.add_parser(
+        "approvals", help="list the requests that wait for your approval"
+    )
+    for name, does in (
+        ("approve", "approve a request: its call runs now"),
+        ("reject", "reject a request: its call never runs"),
+    ):
+        decide_parser = commands.add_parser(name, help=does)
+        # The full id only, as decision #136 has for titan undo; titan chat
+        # and titan approvals print it.
+        decide_parser.add_argument("id", type=UUID, help="the request's full id")
     arguments = parser.parse_args(argv)
 
     try:
@@ -84,6 +97,12 @@ def main(argv: list[str] | None = None) -> None:
             policy_set(arguments.domain, arguments.action_class, arguments.mode)
         elif arguments.command == "policy":
             policy_reset(arguments.domain, arguments.action_class)
+        elif arguments.command == "approvals":
+            approvals_list()
+        elif arguments.command == "approve":
+            approve(arguments.id)
+        elif arguments.command == "reject":
+            reject(arguments.id)
         else:
             whoami()
     except CliError as error:
