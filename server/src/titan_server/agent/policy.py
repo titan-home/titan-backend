@@ -1,14 +1,7 @@
 """The policy: which mode a tool call runs in (decisions #10, #37, #38, #113)."""
 
 from titan_server.domains.audit.models import ActionClass, Mode
-
-# Decision #38; no class defaults to deny.
-DEFAULT_MODES: dict[ActionClass, Mode] = {
-    ActionClass.READ: Mode.AUTO,
-    ActionClass.WRITE_INTERNAL: Mode.AUTO_UNDO,
-    ActionClass.EXTERNAL: Mode.CONFIRM,
-    ActionClass.DESTRUCTIVE: Mode.CONFIRM,
-}
+from titan_server.domains.policy.service import DEFAULT_MODES
 
 
 def mode_for(action_class: ActionClass, undoable: bool, override: Mode | None) -> Mode:

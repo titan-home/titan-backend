@@ -19,8 +19,7 @@ from titan_server.db import Base
 class ActionClass(enum.StrEnum):
     """How much a call can change, which sets its default mode (decision #38).
 
-    A user can change the mode of one class in one domain (decision #10); the
-    policy that applies the modes comes in stage 3.
+    A user can change the mode of one class in one domain (decision #10).
     """
 
     # Only looks: finding tasks, reading a note. Runs at once.
