@@ -11,6 +11,7 @@ from titan_server.db import Base, database_url
 from titan_server.domains.accounts import models  # noqa: F401  registers the tables
 from titan_server.domains.audit import models as audit_models  # noqa: F401
 from titan_server.domains.chat import models as chat_models  # noqa: F401
+from titan_server.domains.policy import models as policy_models  # noqa: F401
 from titan_server.domains.tasks import models as task_models  # noqa: F401
 
 config = context.config

@@ -15,6 +15,7 @@ from titan_server.domains.accounts.models import User
 from titan_server.domains.audit.models import (
     ActionClass,
     AuditEntry,
+    Domain,
     EntryStatus,
     Mode,
 )
@@ -38,6 +39,7 @@ ECHO = Tool(
     name="echo",
     description="Repeat a word.",
     action_class=ActionClass.READ,
+    domain=Domain.TASKS,
     undoable=False,
     input_model=EchoInput,
     summary=lambda echo_input: f"Echoing {echo_input.word}",

@@ -9,7 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from titan_server.agent.tool import ToolContext, sdk_tool
 from titan_server.agent.tools.tasks import CreateTaskInput, create_task
 from titan_server.domains.accounts.models import User
-from titan_server.domains.audit.models import ActionClass
+from titan_server.domains.audit.models import (
+    ActionClass,
+    AuditEntry,
+    Domain,
+    EntryStatus,
+    Mode,
+)
+from titan_server.domains.policy.models import PolicyOverride
 from titan_server.domains.tasks.models import Task, TaskStatus
 
 pytestmark = pytest.mark.anyio
@@ -87,3 +94,29 @@ def test_the_model_reads_a_description_of_the_tool_and_every_field() -> None:
     assert "TODO" not in create_task.description
     assert schema["required"] == ["title"]
     assert all(field.get("description") for field in schema["properties"].values())
+
+
+async def test_a_user_who_wants_to_approve_task_writes_gets_a_waiting_call(
+    session: AsyncSession,
+) -> None:
+    """Defaults 2: confirm for write-internal in tasks, for this user only."""
+    user = await new_user(session)
+    session.add(
+        PolicyOverride(
+            user_id=user.id,
+            domain=Domain.TASKS,
+            action_class=ActionClass.WRITE_INTERNAL,
+            mode=Mode.CONFIRM,
+        )
+    )
+    await session.flush()
+
+    await call(session, user, {"title": "Buy milk"})
+
+    assert await tasks_of(session, user) == []
+    [entry] = await session.scalars(select(AuditEntry))
+    assert (entry.mode, entry.status) == (Mode.CONFIRM, EntryStatus.PENDING)
+
+
+def test_creating_a_task_works_in_the_tasks_domain() -> None:
+    assert create_task.domain == Domain.TASKS

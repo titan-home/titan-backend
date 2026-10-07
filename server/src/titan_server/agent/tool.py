@@ -11,8 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_server.agent.policy import mode_for
 from titan_server.domains.audit.capture import finish_call, start_call
-from titan_server.domains.audit.models import ActionClass, AuditEntry, EntryStatus, Mode
+from titan_server.domains.audit.models import (
+    ActionClass,
+    AuditEntry,
+    Domain,
+    EntryStatus,
+    Mode,
+)
 from titan_server.domains.chat.models import ToolCallRecord
+from titan_server.domains.policy.service import get_override
 
 
 @dataclass(frozen=True)
@@ -39,6 +46,8 @@ class Tool[Input: BaseModel]:
     # What the model reads to decide when and how to call the tool.
     description: str
     action_class: ActionClass
+    # Where a user's own mode for the class applies (decisions #10, #114).
+    domain: Domain
     # Whether putting back what the log recorded undoes a call (decision
     # #109); a tool that cannot be undone never runs as auto-undo.
     undoable: bool
@@ -79,7 +88,10 @@ def sdk_tool(tool: Tool[Any], context: ToolContext) -> SdkMcpTool[Any]:
         except ValidationError as error:
             return {"content": [{"type": "text", "text": str(error)}], "is_error": True}
         summary = tool.summary(tool_input)
-        mode = mode_for(tool.action_class, tool.undoable)
+        override = await get_override(
+            context.session, context.user_id, tool.domain, tool.action_class
+        )
+        mode = mode_for(tool.action_class, tool.undoable, override)
         # Every call is in the audit log, those that do not run too (autonomy
         # spec, audit log 1 and 2); one that runs is failed until it returns.
         audit_entry = AuditEntry(
