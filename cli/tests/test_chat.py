@@ -11,10 +11,13 @@ import pytest
 
 from titan_cli.chat import ChatEvent, print_reply, read_events
 from titan_cli.client.models import (
+    ActionClass,
     ChatDoneEvent,
     ChatErrorEvent,
     ChatTextEvent,
     ChatToolCallEvent,
+    ChatToolCallEventStatus,
+    Domain,
 )
 from titan_cli.main import main
 from titan_cli.node import CliError
@@ -23,9 +26,36 @@ NODE = "https://titan.example.ts.net"
 TOKEN = "titan_v1_" + "t" * 43
 THREAD_ID = uuid.UUID("5d0c7a3e-0000-4000-8000-000000000001")
 REPLY_ID = uuid.UUID("5d0c7a3e-0000-4000-8000-000000000002")
+ENTRY_ID = uuid.UUID("5d0c7a3e-0000-4000-8000-000000000003")
 UNAUTHORIZED = {"type": "about:blank", "title": "Unauthorized", "status": 401}
 
-CALL = ChatToolCallEvent(name="create_task", summary="Buy milk", ok=True)
+CALL_FIELDS: dict[str, object] = {
+    "type": "tool_call",
+    "name": "create_task",
+    "summary": "Buy milk",
+    "ok": True,
+    "status": "done",
+    "entry_id": str(ENTRY_ID),
+    "domain": "tasks",
+    "action_class": "write-internal",
+}
+CALL_LINE = f"data: {json.dumps(CALL_FIELDS)}"
+
+
+def call(status: ChatToolCallEventStatus) -> ChatToolCallEvent:
+    """A call of create_task with the status (decision #119)."""
+    return ChatToolCallEvent(
+        name="create_task",
+        summary="Buy milk",
+        ok=status == ChatToolCallEventStatus.DONE,
+        status=status,
+        entry_id=ENTRY_ID,
+        domain=Domain.TASKS,
+        action_class=ActionClass.WRITE_INTERNAL,
+    )
+
+
+CALL = call(ChatToolCallEventStatus.DONE)
 DONE = ChatDoneEvent(message_id=REPLY_ID)
 DONE_LINE = f'data: {{"type": "done", "message_id": "{REPLY_ID}"}}'
 
@@ -80,11 +110,7 @@ def node(
     ("line", "event"),
     [
         ('data: {"type": "text", "text": "On it."}', ChatTextEvent(text="On it.")),
-        (
-            'data: {"type": "tool_call", "name": "create_task",'
-            ' "summary": "Buy milk", "ok": true}',
-            CALL,
-        ),
+        (CALL_LINE, CALL),
         (DONE_LINE, DONE),
         (
             'data: {"type": "error", "title": "Send the message again"}',
@@ -161,12 +187,26 @@ def test_a_tool_call_before_any_text_starts_the_reply(
     assert capsys.readouterr().out == "· create_task: Buy milk ✓\nAdded.\n"
 
 
-def test_a_failed_tool_call_is_marked(capsys: pytest.CaptureFixture[str]) -> None:
-    failed = ChatToolCallEvent(name="create_task", summary="Buy milk", ok=False)
+@pytest.mark.parametrize(
+    ("status", "line"),
+    [
+        (ChatToolCallEventStatus.DONE, "· create_task: Buy milk ✓"),
+        (ChatToolCallEventStatus.FAILED, "· create_task: Buy milk ✗"),
+        (
+            ChatToolCallEventStatus.PENDING,
+            "· create_task: Buy milk ⏳ waiting for approval:"
+            f" titan approve {ENTRY_ID}",
+        ),
+        (ChatToolCallEventStatus.DENIED, "· create_task: Buy milk ⊘ not allowed"),
+    ],
+)
+def test_a_tool_call_shows_its_status(
+    capsys: pytest.CaptureFixture[str], status: ChatToolCallEventStatus, line: str
+) -> None:
+    """Decision #119: a call that waits says how to approve it."""
+    print_reply([call(status), DONE])
 
-    print_reply([failed, ChatTextEvent(text="It did not work."), DONE])
-
-    assert capsys.readouterr().out == "· create_task: Buy milk ✗\nIt did not work.\n"
+    assert capsys.readouterr().out == f"{line}\n"
 
 
 def test_an_empty_piece_of_text_keeps_the_line_open(
@@ -213,12 +253,7 @@ def test_chat_sends_the_message_in_a_new_thread_and_prints_the_reply(
         monkeypatch,
         reply(
             {"type": "text", "text": "On it."},
-            {
-                "type": "tool_call",
-                "name": "create_task",
-                "summary": "Buy milk",
-                "ok": True,
-            },
+            CALL_FIELDS,
             {"type": "text", "text": "Added."},
             {"type": "done", "message_id": str(REPLY_ID)},
         ),

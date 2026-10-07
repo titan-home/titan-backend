@@ -65,6 +65,19 @@ async def entries(context: ToolContext) -> list[AuditEntry]:
     return list(await context.session.scalars(select(AuditEntry)))
 
 
+def echo_record(entry: AuditEntry, status: str) -> dict[str, Any]:
+    """The record a reply keeps of a call of ECHO (decision #119)."""
+    return {
+        "name": "echo",
+        "summary": "Echoing milk",
+        "status": status,
+        "ok": status == "done",
+        "entry_id": str(entry.id),
+        "domain": "tasks",
+        "action_class": "read",
+    }
+
+
 def test_the_model_sees_the_name_description_and_input_schema() -> None:
     context = ToolContext(
         session=cast(AsyncSession, None), user_id=uuid.uuid4(), thread_id=None
@@ -84,21 +97,13 @@ async def test_a_valid_call_runs_for_the_context_and_returns_text(
     assert calls == [(context, EchoInput(word="milk"))]
 
 
-async def test_every_call_is_recorded_with_its_summary_and_outcome(
-    context: ToolContext,
-) -> None:
+async def test_a_call_that_ran_is_recorded_as_done(context: ToolContext) -> None:
     """Chat spec, tool activity 1: name, summary and whether it succeeded."""
     await sdk_tool(ECHO, context).handler({"word": "milk"})
 
     [entry] = await entries(context)
-    assert context.calls == [
-        {
-            "name": "echo",
-            "summary": "Echoing milk",
-            "ok": True,
-            "entry_id": str(entry.id),
-        }
-    ]
+    assert context.calls == [echo_record(entry, "done")]
+    assert entry.domain == Domain.TASKS
 
 
 async def test_every_call_is_written_to_the_audit_log(context: ToolContext) -> None:
@@ -137,14 +142,8 @@ async def test_a_call_that_fails_is_recorded_as_failed(context: ToolContext) -> 
 
     [entry] = await entries(context)
     assert entry.status == EntryStatus.FAILED
-    assert context.calls == [
-        {
-            "name": "echo",
-            "summary": "Echoing milk",
-            "ok": False,
-            "entry_id": str(entry.id),
-        }
-    ]
+    assert context.calls == [echo_record(entry, "failed")]
+    assert entry.domain == Domain.TASKS
 
 
 @pytest.mark.parametrize("arguments", [{}, {"word": ""}, {"word": 5}])
@@ -171,6 +170,9 @@ async def test_a_call_that_needs_approval_does_not_run_and_waits(
     assert calls == []
     [entry] = await entries(context)
     assert (entry.mode, entry.status) == (Mode.CONFIRM, EntryStatus.PENDING)
+    # Decision #119: a call that waits is in the reply too.
+    assert context.calls == [echo_record(entry, "pending")]
+    assert entry.domain == Domain.TASKS
     # The model is told the call is waiting, which is not an error.
     assert not result.get("is_error")
     assert "approval" in result["content"][0]["text"]
@@ -187,6 +189,9 @@ async def test_a_denied_call_does_not_run_and_the_model_is_told(
     assert calls == []
     [entry] = await entries(context)
     assert (entry.mode, entry.status) == (Mode.DENY, EntryStatus.DENIED)
+    # Decision #119: a call that is not allowed is in the reply too.
+    assert context.calls == [echo_record(entry, "denied")]
+    assert entry.domain == Domain.TASKS
     assert result["is_error"] is True
     assert "not allowed" in result["content"][0]["text"]
 
@@ -200,6 +205,7 @@ def new_entry(context: ToolContext) -> AuditEntry:
         summary="Echoing milk",
         mode=Mode.AUTO,
         action_class=ActionClass.READ,
+        domain=Domain.TASKS,
         input={"word": "milk"},
         status=EntryStatus.FAILED,
     )
@@ -214,14 +220,7 @@ async def test_run_call_runs_the_tool_and_records_it(context: ToolContext) -> No
 
     assert text == "echo milk"
     assert entry.status == EntryStatus.DONE
-    assert context.calls == [
-        {
-            "name": "echo",
-            "summary": "Echoing milk",
-            "ok": True,
-            "entry_id": str(entry.id),
-        }
-    ]
+    assert context.calls == [echo_record(entry, "done")]
 
 
 async def create_run(context: ToolContext, echo_input: EchoInput) -> str:
@@ -279,7 +278,7 @@ async def test_a_failed_call_leaves_none_of_its_changes(context: ToolContext) ->
         select(AuditEntry.status).where(AuditEntry.id == entry.id)
     )
     assert status == EntryStatus.FAILED
-    assert [record["ok"] for record in context.calls] == [False]
+    assert [record["status"] for record in context.calls] == ["failed"]
     assert list(await context.session.scalars(select(AuditChange))) == []
 
 

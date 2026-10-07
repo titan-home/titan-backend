@@ -20,6 +20,7 @@ from titan_server.domains.audit.models import (
     ActionClass,
     AuditChange,
     AuditEntry,
+    Domain,
     EntryStatus,
     Mode,
 )
@@ -72,6 +73,7 @@ async def new_entry(session: AsyncSession, user: User) -> AuditEntry:
         user_id=user.id,
         tool="create_task",
         action_class=ActionClass.WRITE_INTERNAL,
+        domain=Domain.TASKS,
         mode=Mode.AUTO_UNDO,
         input={"title": "Buy milk"},
         summary="Creating a task: Buy milk",

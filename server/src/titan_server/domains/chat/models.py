@@ -20,14 +20,23 @@ class Role(enum.StrEnum):
 
 
 class ToolCallRecord(TypedDict):
-    """What a reply keeps of one tool call; the audit log keeps it all."""
+    """What a reply keeps of one tool call; the audit log keeps it all.
+
+    Every call is kept, run or not (decision #119). Replies stored before
+    the audit log have only name, summary and ok.
+    """
 
     name: str
     summary: str
+    # The entry's status when the reply was made: done, failed, pending or
+    # denied (decision #119).
+    status: NotRequired[str]
+    # The same as status == "done"; kept, since fields are only added in v1.
     ok: bool
-    # The call's audit entry (decision #112); replies stored before the audit
-    # log have none.
+    # The call's audit entry (decision #112).
     entry_id: NotRequired[str]
+    domain: NotRequired[str]
+    action_class: NotRequired[str]
 
 
 class Thread(Base):

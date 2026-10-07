@@ -5,6 +5,7 @@ from titan_cli.client.models.chat_done_event import ChatDoneEvent
 from titan_cli.client.models.chat_error_event import ChatErrorEvent
 from titan_cli.client.models.chat_text_event import ChatTextEvent
 from titan_cli.client.models.chat_tool_call_event import ChatToolCallEvent
+from titan_cli.client.models.chat_tool_call_event_status import ChatToolCallEventStatus
 from titan_cli.client.models.device_registration_in import DeviceRegistrationIn
 from titan_cli.client.models.device_registration_out import DeviceRegistrationOut
 from titan_cli.client.models.domain import Domain
@@ -24,6 +25,7 @@ __all__ = (
     "ChatErrorEvent",
     "ChatTextEvent",
     "ChatToolCallEvent",
+    "ChatToolCallEventStatus",
     "DeviceRegistrationIn",
     "DeviceRegistrationOut",
     "Domain",
