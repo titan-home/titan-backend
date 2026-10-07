@@ -16,9 +16,11 @@ product, architecture and rules shared by every TITAN repository are in the
 
 ## Status
 
-Build-plan stage 2 is under way: the agent, end to end. Stage 1 is done:
-the development stack, the owner, `titan login` and `titan whoami`.
-See the [build plan](shared/docs/roadmap/plan.md).
+Build-plan stages 1 and 2 are done: the development stack, the owner,
+`titan login` and `titan whoami`, and the agent end to end, where
+`titan chat "add a task to buy milk"` streams the reply and the task is in
+the database. Stage 3, the policy and the audit log, is next. See the
+[build plan](shared/docs/roadmap/plan.md).
 
 ## Layout
 
