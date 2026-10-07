@@ -115,6 +115,11 @@ async def run_turn(
     result: ResultMessage | None = None
 
     async for message in ask(system_prompt(now), prompt(earlier, text), tools):
+        # Tools run while Claude works: report the calls that ran before this
+        # message, so they come before the text written after them.
+        for call in context.calls[reported:]:
+            yield ToolCalled(call)
+        reported = len(context.calls)
         if isinstance(message, StreamEvent):
             delta = message.event.get("delta", {})
             if delta.get("type") == "text_delta":
@@ -126,10 +131,6 @@ async def run_turn(
             ]
         elif isinstance(message, ResultMessage):
             result = message
-        # Tools run while Claude works; report each call once it has run.
-        for call in context.calls[reported:]:
-            yield ToolCalled(call)
-        reported = len(context.calls)
 
     if result is None or result.is_error:
         reason = "no result" if result is None else result.subtype

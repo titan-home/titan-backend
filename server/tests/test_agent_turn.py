@@ -263,3 +263,29 @@ async def test_a_missing_thread_is_not_found(session: AsyncSession) -> None:
     with pytest.raises(chat.ThreadNotFoundError):
         events = run_turn(session, thread.user_id, uuid.uuid4(), "hi", NOW, Claude())
         [event async for event in events]
+
+
+async def test_a_tool_call_comes_before_the_text_written_after_it(
+    session: AsyncSession,
+) -> None:
+    """Tool activity 1: the call shows where it happened in the reply."""
+    thread = await new_thread(session)
+
+    async def claude(
+        system_prompt: str, prompt: str, tools: Sequence[SdkMcpTool[Any]]
+    ) -> AsyncIterator[Message]:
+        # Claude Code streams the text after a tool call with no whole
+        # message in between.
+        await tools[0].handler({"title": "Buy milk"})
+        yield text_delta("Added.")
+        yield AssistantMessage(content=[TextBlock("Added.")], model=MODEL)
+        yield result()
+
+    events = [
+        event
+        async for event in run_turn(
+            session, thread.user_id, thread.id, "hi", NOW, claude
+        )
+    ]
+
+    assert [type(event) for event in events] == [ToolCalled, TextDelta, ReplyStored]
