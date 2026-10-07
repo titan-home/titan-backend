@@ -9,9 +9,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from titan_server.agent import policy
 from titan_server.agent.tool import Tool, ToolContext, sdk_tool
 from titan_server.domains.accounts.models import User
-from titan_server.domains.audit.models import ActionClass, AuditEntry, EntryStatus
+from titan_server.domains.audit.models import (
+    ActionClass,
+    AuditEntry,
+    EntryStatus,
+    Mode,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -111,6 +117,7 @@ async def test_every_call_is_written_to_the_audit_log(context: ToolContext) -> N
         "Echoing milk",
         EntryStatus.DONE,
     )
+    assert entry.mode == Mode.AUTO
 
 
 async def test_a_call_that_fails_is_recorded_as_failed(context: ToolContext) -> None:
@@ -145,3 +152,34 @@ async def test_invalid_input_is_an_error_for_the_model_and_runs_nothing(
     assert context.calls == []
     # The model's mistake, not a call: nothing ran, so nothing is logged.
     assert await entries(context) == []
+
+
+async def test_a_call_that_needs_approval_does_not_run_and_waits(
+    context: ToolContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Modes 4: confirm does not run; the call becomes an approval request."""
+    monkeypatch.setitem(policy.DEFAULT_MODES, ActionClass.READ, Mode.CONFIRM)
+
+    result = await sdk_tool(ECHO, context).handler({"word": "milk"})
+
+    assert calls == []
+    [entry] = await entries(context)
+    assert (entry.mode, entry.status) == (Mode.CONFIRM, EntryStatus.PENDING)
+    # The model is told the call is waiting, which is not an error.
+    assert not result.get("is_error")
+    assert "approval" in result["content"][0]["text"]
+
+
+async def test_a_denied_call_does_not_run_and_the_model_is_told(
+    context: ToolContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Modes 5: deny does not run, and the agent is told it is not allowed."""
+    monkeypatch.setitem(policy.DEFAULT_MODES, ActionClass.READ, Mode.DENY)
+
+    result = await sdk_tool(ECHO, context).handler({"word": "milk"})
+
+    assert calls == []
+    [entry] = await entries(context)
+    assert (entry.mode, entry.status) == (Mode.DENY, EntryStatus.DENIED)
+    assert result["is_error"] is True
+    assert "not allowed" in result["content"][0]["text"]

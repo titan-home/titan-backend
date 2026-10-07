@@ -3,14 +3,15 @@
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, assert_never
 
 from claude_agent_sdk import SdkMcpTool
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from titan_server.agent.policy import mode_for
 from titan_server.domains.audit.capture import finish_call, start_call
-from titan_server.domains.audit.models import ActionClass, AuditEntry, EntryStatus
+from titan_server.domains.audit.models import ActionClass, AuditEntry, EntryStatus, Mode
 from titan_server.domains.chat.models import ToolCallRecord
 
 
@@ -52,41 +53,81 @@ class Tool[Input: BaseModel]:
 def sdk_tool(tool: Tool[Any], context: ToolContext) -> SdkMcpTool[Any]:
     """The tool as the Agent SDK takes it, acting for context's user."""
 
+    async def _run_tool(
+        audit_entry: AuditEntry, summary: str, tool_input: Any
+    ) -> dict[str, Any]:
+        record: ToolCallRecord = {
+            "name": tool.name,
+            "summary": summary,
+            "ok": False,
+            "entry_id": str(audit_entry.id),
+        }
+        # What the run changes in Audited objects becomes the entry's changes.
+        start_call(context.session, audit_entry)
+        try:
+            text = await tool.run(context, tool_input)
+            audit_entry.status = EntryStatus.DONE
+            record["ok"] = True
+        finally:
+            await finish_call(context.session)
+            context.calls.append(record)
+        return {"content": [{"type": "text", "text": text}]}
+
     async def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         try:
             tool_input = tool.input_model.model_validate(arguments)
         except ValidationError as error:
             return {"content": [{"type": "text", "text": str(error)}], "is_error": True}
         summary = tool.summary(tool_input)
-        # Every call that runs is in the audit log, failed ones too (autonomy
-        # spec, audit log 1); it is failed until the run returns.
-        entry = AuditEntry(
+        mode = mode_for(tool.action_class, tool.undoable)
+        # Every call is in the audit log, those that do not run too (autonomy
+        # spec, audit log 1 and 2); one that runs is failed until it returns.
+        audit_entry = AuditEntry(
             id=uuid.uuid4(),
             user_id=context.user_id,
             thread_id=context.thread_id,
             tool=tool.name,
+            summary=summary,
+            mode=mode,
             action_class=tool.action_class,
             input=tool_input.model_dump(mode="json"),
-            summary=summary,
             status=EntryStatus.FAILED,
         )
-        context.session.add(entry)
-        record: ToolCallRecord = {
-            "name": tool.name,
-            "summary": summary,
-            "ok": False,
-            "entry_id": str(entry.id),
-        }
-        # What the run changes in Audited objects becomes the entry's changes.
-        start_call(context.session, entry)
-        try:
-            text = await tool.run(context, tool_input)
-            entry.status = EntryStatus.DONE
-            record["ok"] = True
-        finally:
-            await finish_call(context.session)
-            context.calls.append(record)
-        return {"content": [{"type": "text", "text": text}]}
+        context.session.add(audit_entry)
+        match mode:
+            case Mode.DENY:
+                audit_entry.status = EntryStatus.DENIED
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "The user's settings say this call is not"
+                                " allowed, so it did not run."
+                            ),
+                        }
+                    ],
+                    "is_error": True,
+                }
+            case Mode.CONFIRM:
+                audit_entry.status = EntryStatus.PENDING
+                # Waiting is not an error: the model tells the user to approve.
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "This call needs the user's approval and has not"
+                                " run yet. Tell the user it is waiting for their"
+                                " approval."
+                            ),
+                        }
+                    ]
+                }
+            case Mode.AUTO | Mode.AUTO_UNDO:
+                return await _run_tool(audit_entry, summary, tool_input)
+            case _:
+                assert_never(mode)
 
     return SdkMcpTool(
         name=tool.name,

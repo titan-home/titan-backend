@@ -75,6 +75,15 @@ class AuditEntry(Base):
     )
     tool: Mapped[str]
     summary: Mapped[str]
+    mode: Mapped[Mode] = mapped_column(
+        Enum(
+            Mode,
+            name="mode",
+            native_enum=False,
+            create_constraint=True,
+            values_callable=lambda modes: [mode.value for mode in modes],
+        )
+    )
     action_class: Mapped[ActionClass] = mapped_column(
         Enum(
             ActionClass,
