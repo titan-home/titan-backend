@@ -21,8 +21,9 @@ Build-plan stages 1 and 2 are done: the development stack, the owner,
 `titan chat "add a task to buy milk"` streams the reply and the task is in
 the database. Stage 3, the policy and the audit log, is under way: every
 tool call is in the audit log with what it changed and runs in the mode of
-its action class, and `titan policy` sets a user's own mode per domain;
-approvals and undo come next. See the
+its action class, `titan policy` sets a user's own mode per domain, and
+`titan approvals`, `titan approve` and `titan reject` decide the calls that
+wait for approval; undo comes next. See the
 [build plan](shared/docs/roadmap/plan.md).
 
 ## Layout
