@@ -52,6 +52,8 @@ jobs:
           mkdir -m 700 .secrets
           openssl rand -hex 32 > .secrets/db_password
           chmod 644 .secrets/db_password
+          # No chat runs here, so the token file stays empty.
+          touch .secrets/claude_token
           docker compose up --build --wait
           curl --fail --silent http://127.0.0.1:8000/health
       - name: Stop the stack

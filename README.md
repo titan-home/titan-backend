@@ -74,10 +74,16 @@ To run api and PostgreSQL in Docker, create the database password once, then
 start the stack. The folder keeps the password private on the machine; the
 file itself must be readable, because the containers run as another user.
 
+For chat, the api also needs the OAuth token that `claude setup-token`
+prints. `read -rs` takes it without echo and keeps it out of the shell
+history; an empty file starts the stack without chat.
+
 ```sh
 mkdir -m 700 .secrets
 openssl rand -hex 32 > .secrets/db_password
 chmod 644 .secrets/db_password
+read -rs TOKEN && printf '%s\n' "$TOKEN" > .secrets/claude_token && unset TOKEN
+chmod 644 .secrets/claude_token
 docker compose up --build --wait
 curl http://127.0.0.1:8000/health
 ```

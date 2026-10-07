@@ -5,13 +5,16 @@ services:
   api:
     build: .
     read_only: true
+    # Each chat turn gives Claude Code a temporary HOME under /tmp; on tmpfs
+    # its transcript never reaches a disk (development rules, section 14).
     tmpfs: [/tmp]
     mem_limit: 512m
     ports: ["127.0.0.1:8000:8000"]
     environment:
       TITAN_DATABASE_URL: postgresql+psycopg://titan@db/titan
       TITAN_DATABASE_PASSWORD_FILE: /run/secrets/db_password
-    secrets: [db_password]
+      TITAN_CLAUDE_TOKEN_FILE: /run/secrets/claude_token
+    secrets: [db_password, claude_token]
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -48,6 +51,8 @@ services:
 secrets:
   db_password:
     file: .secrets/db_password
+  claude_token:
+    file: .secrets/claude_token
 
 volumes:
   db-data:
