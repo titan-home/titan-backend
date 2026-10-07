@@ -14,6 +14,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from titan_server.db import Base
+from titan_server.domains.chat.models import ToolCallRecord
 
 
 class ActionClass(enum.StrEnum):
@@ -126,6 +127,19 @@ class AuditEntry(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.clock_timestamp()
     )
+
+
+def call_record(entry: AuditEntry) -> ToolCallRecord:
+    """What a reply keeps of entry's call, as it stands now (decision #119)."""
+    return {
+        "name": entry.tool,
+        "summary": entry.summary,
+        "status": entry.status.value,
+        "ok": entry.status == EntryStatus.DONE,
+        "entry_id": str(entry.id),
+        "domain": entry.domain.value,
+        "action_class": entry.action_class.value,
+    }
 
 
 class AuditChange(Base):

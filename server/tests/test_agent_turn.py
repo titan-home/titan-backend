@@ -1,6 +1,7 @@
 """Tests for a chat turn, with scripted replies instead of Claude (chat.md)."""
 
 import asyncio
+import re
 import uuid
 from collections.abc import AsyncIterator, Sequence
 from datetime import UTC, datetime
@@ -25,6 +26,7 @@ from titan_server.agent.turn import (
     ToolCalled,
     TurnEvent,
     TurnFailedError,
+    prompt,
     run_turn,
     system_prompt,
 )
@@ -275,6 +277,48 @@ async def test_a_call_stored_without_a_status_is_retold_from_ok(
         "[create_task: Creating a task: Buy milk, done]\n"
         "[create_task: Creating a task: Buy rye, failed]\n"
     ) in prompt
+
+
+def retold(status: str) -> str:
+    """The history retold for a reply that keeps one call with status."""
+    reply = ChatMessage(
+        role=Role.ASSISTANT,
+        text="Rejected: Creating a task: Buy milk.",
+        tool_calls=[
+            {
+                "name": "create_task",
+                "summary": "Creating a task: Buy milk",
+                "status": status,
+                "ok": False,
+            }
+        ],
+    )
+    return prompt([reply], "and now?")
+
+
+@pytest.mark.parametrize("status", list(EntryStatus))
+def test_every_status_of_an_entry_has_a_retelling(status: EntryStatus) -> None:
+    """Node-written messages store rejected and expired too (decisions #120, #126)."""
+    assert re.search(
+        r"\[create_task: Creating a task: Buy milk, [a-z ]+\]\n", retold(status)
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "outcome"),
+    [
+        ("done", "done"),
+        ("failed", "failed"),
+        ("pending", "waiting for approval"),
+        ("denied", "not allowed"),
+        ("rejected", "rejected"),
+        ("expired", "expired"),
+        # A record never breaks the turns after it, whatever it holds.
+        ("archived", "archived"),
+    ],
+)
+def test_a_stored_call_is_retold_by_its_status(status: str, outcome: str) -> None:
+    assert f"[create_task: Creating a task: Buy milk, {outcome}]\n" in retold(status)
 
 
 async def test_a_call_in_confirm_waits_for_approval(session: AsyncSession) -> None:

@@ -27,9 +27,10 @@ from titan_server.api.v1 import chat as chat_api
 from titan_server.domains.accounts.devices import sign_in
 from titan_server.domains.accounts.models import User
 from titan_server.domains.accounts.passwords import hash_password
-from titan_server.domains.audit.models import AuditEntry
+from titan_server.domains.audit.models import ActionClass, AuditEntry, Domain, Mode
 from titan_server.domains.chat import service as chat
 from titan_server.domains.chat.models import Message as ChatMessage
+from titan_server.domains.policy.service import set_override
 from titan_server.domains.tasks.models import Task
 
 pytestmark = pytest.mark.anyio
@@ -176,6 +177,32 @@ async def test_add_a_task_to_buy_milk(
     thread = await chat.get_thread(session, task.user_id, uuid.UUID(thread_id))
     [_, reply] = await chat.history(session, thread)
     assert str(reply.id) == events[-1]["message_id"]
+
+
+@pytest.mark.parametrize(
+    ("mode", "status"), [(Mode.CONFIRM, "pending"), (Mode.DENY, "denied")]
+)
+async def test_a_call_that_does_not_run_is_in_the_stream(
+    client: httpx.AsyncClient, session: AsyncSession, mode: Mode, status: str
+) -> None:
+    """Decision #119: a waiting or denied call is a tool_call event with its entry."""
+    owner = await session.scalar(select(User).where(User.username == "owner"))
+    assert owner is not None
+    await set_override(
+        session, owner.id, Domain.TASKS, ActionClass.WRITE_INTERNAL, mode
+    )
+    thread_id = await new_thread(client)
+
+    response = await send(client, thread_id, ADD_MILK)
+
+    [entry] = await session.scalars(select(AuditEntry))
+    [call] = [event for event in events_of(response) if event["type"] == "tool_call"]
+    assert (call["status"], call["entry_id"], call["ok"]) == (
+        status,
+        str(entry.id),
+        False,
+    )
+    assert list(await session.scalars(select(Task))) == []
 
 
 async def test_another_users_thread_answers_404_and_claude_is_not_asked(

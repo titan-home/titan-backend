@@ -17,6 +17,7 @@ from titan_server.domains.audit.models import (
     Domain,
     EntryStatus,
     Mode,
+    call_record,
 )
 from titan_server.domains.chat.models import ToolCallRecord
 from titan_server.domains.policy.service import get_override
@@ -57,19 +58,6 @@ class Tool[Input: BaseModel]:
     summary: Callable[[Input], str]
     # Does the work for context's user; the text it returns goes to the model.
     run: Callable[[ToolContext, Input], Awaitable[str]]
-
-
-def call_record(entry: AuditEntry) -> ToolCallRecord:
-    """What the reply keeps of entry's call, as it stands now (decision #119)."""
-    return {
-        "name": entry.tool,
-        "summary": entry.summary,
-        "status": entry.status.value,
-        "ok": entry.status == EntryStatus.DONE,
-        "entry_id": str(entry.id),
-        "domain": entry.domain.value,
-        "action_class": entry.action_class.value,
-    }
 
 
 async def run_call(
