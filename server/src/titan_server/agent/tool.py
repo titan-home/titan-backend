@@ -30,14 +30,17 @@ class ToolContext:
 class Tool[Input: BaseModel]:
     """A tool the agent may call, with everything a person needs to judge it.
 
-    NOTE: no undo yet, although decision #98 lists it; it comes in stage 3,
-    together with the policy and the audit log that use it.
+    NOTE: undoable only says whether the log can take a call back (decision
+    #109); the undo itself comes later in stage 3.
     """
 
     name: str
     # What the model reads to decide when and how to call the tool.
     description: str
     action_class: ActionClass
+    # Whether putting back what the log recorded undoes a call (decision
+    # #109); a tool that cannot be undone never runs as auto-undo.
+    undoable: bool
     # The input the model must send; it is checked before run is called.
     input_model: type[Input]
     # One line a person can approve, built from the input.

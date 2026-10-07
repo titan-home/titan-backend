@@ -35,6 +35,19 @@ class ActionClass(enum.StrEnum):
     DESTRUCTIVE = "destructive"
 
 
+class Mode(enum.StrEnum):
+    """What happens when the agent calls a tool (autonomy spec, modes)."""
+
+    # Runs; shows only in the audit log.
+    AUTO = "auto"
+    # Runs at once; the reply shows it with an Undo (decision #37).
+    AUTO_UNDO = "auto-undo"
+    # Does not run; waits for the user's approval.
+    CONFIRM = "confirm"
+    # Does not run; the agent is told it is not allowed.
+    DENY = "deny"
+
+
 class EntryStatus(enum.StrEnum):
     """Where a call stands in its life (decision #111)."""
 
