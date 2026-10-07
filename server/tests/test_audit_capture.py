@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_server.domains.accounts.models import User
 from titan_server.domains.audit.capture import (
+    AUDIT_ENTRY,
+    drop_call,
     finish_call,
     from_json,
     start_call,
@@ -213,3 +215,21 @@ async def test_an_object_changed_then_deleted_keeps_its_row_from_before_the_call
     assert change.after is None
     assert change.before is not None
     assert (change.before["title"], change.before["status"]) == ("Buy milk", "open")
+
+
+@pytest.mark.anyio
+async def test_a_dropped_call_records_none_of_its_changes(
+    session: AsyncSession,
+) -> None:
+    # Its changes were rolled back (decision #122), so there is nothing to log.
+    user = await new_user(session)
+    entry = await new_entry(session, user)
+
+    start_call(session, entry)
+    await create_task(session, user.id, "Buy milk")
+    drop_call(session)
+    await create_task(session, user.id, "Buy oat milk")
+
+    # The call has ended: later flushes are not its, and nothing is logged.
+    assert AUDIT_ENTRY not in session.info
+    assert await changes(session, entry) == []
