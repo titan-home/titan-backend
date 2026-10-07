@@ -1,5 +1,6 @@
 """Tests for a chat turn, with scripted replies instead of Claude (chat.md)."""
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator, Sequence
 from datetime import UTC, datetime
@@ -289,3 +290,36 @@ async def test_a_tool_call_comes_before_the_text_written_after_it(
     ]
 
     assert [type(event) for event in events] == [ToolCalled, TextDelta, ReplyStored]
+
+
+async def test_a_tool_call_is_reported_only_once_it_has_finished(
+    session: AsyncSession,
+) -> None:
+    """Tool activity 1: a call that worked is never shown as failed."""
+    thread = await new_thread(session)
+
+    async def claude(
+        system_prompt: str, prompt: str, tools: Sequence[SdkMcpTool[Any]]
+    ) -> AsyncIterator[Message]:
+        # The SDK runs a tool in a task of its own and keeps streaming while
+        # the tool waits for the database.
+        running = asyncio.ensure_future(tools[0].handler({"title": "Buy milk"}))
+        await asyncio.sleep(0)
+        yield StreamEvent(uuid="e", session_id="s", event={"type": "ping"})
+        await running
+        yield text_delta("Added.")
+        yield AssistantMessage(content=[TextBlock("Added.")], model=MODEL)
+        yield result()
+
+    # Each call as it was when reported, before the turn goes on.
+    reported = [
+        dict(event.call)
+        async for event in run_turn(
+            session, thread.user_id, thread.id, "hi", NOW, claude
+        )
+        if isinstance(event, ToolCalled)
+    ]
+
+    assert reported == [
+        {"name": "create_task", "summary": "Creating a task: Buy milk", "ok": True}
+    ]
