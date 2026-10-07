@@ -17,6 +17,7 @@ from titan_server.agent.claude import ask_claude
 from titan_server.agent.turn import Ask, ReplyStored, TextDelta, ToolCalled, run_turn
 from titan_server.api.dependencies import BackgroundSessions, CurrentDevice, Session
 from titan_server.api.problems import problems
+from titan_server.domains.audit.models import ActionClass, Domain
 from titan_server.domains.chat import service as chat
 from titan_server.domains.chat.models import Thread
 
@@ -79,12 +80,22 @@ class ChatTextEvent(ChatEventBase):
 
 
 class ChatToolCallEvent(ChatEventBase):
-    """A tool call that ran: its name, a line a person can read, its outcome."""
+    """A tool call, run or not: its name, a line a person can read, its status.
+
+    The status is the one when the reply was made; a `pending` call waits for
+    the user's approval, and its entry says what became of it later.
+    """
 
     type: Literal["tool_call"] = "tool_call"
     name: str
     summary: str
+    # The same as status == "done"; kept, since v1 only adds fields.
     ok: bool
+    status: Literal["done", "failed", "pending", "denied"]
+    # The call's audit entry.
+    entry_id: uuid.UUID
+    domain: Domain
+    action_class: ActionClass
 
 
 class ChatDoneEvent(ChatEventBase):
@@ -154,12 +165,9 @@ async def turn(
                 if isinstance(event, TextDelta):
                     events.put_nowait(ChatTextEvent(text=event.text))
                 elif isinstance(event, ToolCalled):
-                    call = event.call
-                    events.put_nowait(
-                        ChatToolCallEvent(
-                            name=call["name"], summary=call["summary"], ok=call["ok"]
-                        )
-                    )
+                    # The record has the event's fields; validating it checks
+                    # the strings of status, domain and class.
+                    events.put_nowait(ChatToolCallEvent.model_validate(event.call))
                 elif isinstance(event, ReplyStored):
                     reply = ChatDoneEvent(message_id=event.reply_id)
         # Told only once the reply is committed.

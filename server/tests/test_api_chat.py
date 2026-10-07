@@ -27,6 +27,7 @@ from titan_server.api.v1 import chat as chat_api
 from titan_server.domains.accounts.devices import sign_in
 from titan_server.domains.accounts.models import User
 from titan_server.domains.accounts.passwords import hash_password
+from titan_server.domains.audit.models import AuditEntry
 from titan_server.domains.chat import service as chat
 from titan_server.domains.chat.models import Message as ChatMessage
 from titan_server.domains.tasks.models import Task
@@ -153,12 +154,18 @@ async def test_add_a_task_to_buy_milk(
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     events = events_of(response)
+    [entry] = await session.scalars(select(AuditEntry))
     assert events[:-1] == [
         {
             "type": "tool_call",
             "name": "create_task",
             "summary": "Creating a task: Buy milk",
             "ok": True,
+            # Decision #119.
+            "status": "done",
+            "entry_id": str(entry.id),
+            "domain": "tasks",
+            "action_class": "write-internal",
         },
         {"type": "text", "text": "Added "},
         {"type": "text", "text": "it."},

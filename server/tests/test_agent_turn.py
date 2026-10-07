@@ -29,10 +29,18 @@ from titan_server.agent.turn import (
     system_prompt,
 )
 from titan_server.domains.accounts.models import User
-from titan_server.domains.audit.models import AuditChange, AuditEntry, EntryStatus
+from titan_server.domains.audit.models import (
+    ActionClass,
+    AuditChange,
+    AuditEntry,
+    Domain,
+    EntryStatus,
+    Mode,
+)
 from titan_server.domains.chat import service as chat
 from titan_server.domains.chat.models import Message as ChatMessage
 from titan_server.domains.chat.models import Role, Thread, ToolCallRecord
+from titan_server.domains.policy.service import set_override
 from titan_server.domains.tasks.models import Task
 
 pytestmark = pytest.mark.anyio
@@ -118,8 +126,11 @@ async def test_add_a_task_to_buy_milk(session: AsyncSession) -> None:
     call: ToolCallRecord = {
         "name": "create_task",
         "summary": "Creating a task: Buy milk",
+        "status": "done",
         "ok": True,
         "entry_id": str(entry.id),
+        "domain": "tasks",
+        "action_class": "write-internal",
     }
     assert events[:-1] == [ToolCalled(call), TextDelta("Added"), TextDelta("it.")]
     assert isinstance(events[-1], ReplyStored)
@@ -214,6 +225,87 @@ async def test_later_turns_retell_the_thread_with_its_tool_calls(
         "</earlier_messages>\n\n"
         "is it there?"
     )
+
+
+@pytest.mark.parametrize(
+    ("mode", "outcome"),
+    [(Mode.CONFIRM, "waiting for approval"), (Mode.DENY, "not allowed")],
+)
+async def test_a_call_that_did_not_run_is_retold_as_it_stood(
+    session: AsyncSession, mode: Mode, outcome: str
+) -> None:
+    """Decision #119: a waiting call is not retold as failed."""
+    thread = await new_thread(session)
+    await set_override(
+        session, thread.user_id, Domain.TASKS, ActionClass.WRITE_INTERNAL, mode
+    )
+    await turn(
+        session,
+        thread,
+        "add a task to buy milk",
+        Claude(calls=[("create_task", {"title": "Buy milk"})]),
+    )
+    claude = Claude()
+
+    await turn(session, thread, "is it there?", claude)
+
+    [(_, prompt, _)] = claude.asked
+    assert f"[create_task: Creating a task: Buy milk, {outcome}]\n" in prompt
+
+
+async def test_a_call_stored_without_a_status_is_retold_from_ok(
+    session: AsyncSession,
+) -> None:
+    """Replies stored before decision #119 keep only ok."""
+    thread = await new_thread(session)
+    await chat.add_user_message(session, thread, "add two tasks")
+    stored: list[ToolCallRecord] = [
+        {"name": "create_task", "summary": "Creating a task: Buy milk", "ok": True},
+        {"name": "create_task", "summary": "Creating a task: Buy rye", "ok": False},
+    ]
+    await chat.add_reply(
+        session, thread, "Added one.", stored, chat.Usage(MODEL, 0, 0, 0, 0)
+    )
+    claude = Claude()
+
+    await turn(session, thread, "which?", claude)
+
+    [(_, prompt, _)] = claude.asked
+    assert (
+        "[create_task: Creating a task: Buy milk, done]\n"
+        "[create_task: Creating a task: Buy rye, failed]\n"
+    ) in prompt
+
+
+async def test_a_call_in_confirm_waits_for_approval(session: AsyncSession) -> None:
+    """Modes 4 and decision #119: the call does not run and the reply says so."""
+    thread = await new_thread(session)
+    await set_override(
+        session,
+        thread.user_id,
+        Domain.TASKS,
+        ActionClass.WRITE_INTERNAL,
+        Mode.CONFIRM,
+    )
+    claude = Claude(calls=[("create_task", {"title": "Buy milk"})], reply="Approve?")
+
+    events = await turn(session, thread, "add a task to buy milk", claude)
+
+    assert list(await session.scalars(select(Task))) == []
+    [entry] = await session.scalars(select(AuditEntry))
+    assert entry.status == EntryStatus.PENDING
+    call: ToolCallRecord = {
+        "name": "create_task",
+        "summary": "Creating a task: Buy milk",
+        "status": "pending",
+        "ok": False,
+        "entry_id": str(entry.id),
+        "domain": "tasks",
+        "action_class": "write-internal",
+    }
+    assert events[0] == ToolCalled(call)
+    [_, reply] = await chat.history(session, thread)
+    assert reply.tool_calls == [call]
 
 
 async def test_only_the_latest_messages_are_retold(session: AsyncSession) -> None:
@@ -357,7 +449,10 @@ async def test_a_tool_call_is_reported_only_once_it_has_finished(
         {
             "name": "create_task",
             "summary": "Creating a task: Buy milk",
+            "status": "done",
             "ok": True,
             "entry_id": str(entry.id),
+            "domain": "tasks",
+            "action_class": "write-internal",
         }
     ]

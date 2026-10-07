@@ -12,6 +12,7 @@ from titan_server.domains.audit.models import (
     ActionClass,
     AuditChange,
     AuditEntry,
+    Domain,
     EntryStatus,
     Mode,
 )
@@ -33,6 +34,7 @@ def create_task_entry(user: User, thread_id: uuid.UUID | None) -> AuditEntry:
         thread_id=thread_id,
         tool="create_task",
         action_class=ActionClass.WRITE_INTERNAL,
+        domain=Domain.TASKS,
         mode=Mode.AUTO_UNDO,
         input={"title": "Buy milk"},
         summary="Creating a task: Buy milk",

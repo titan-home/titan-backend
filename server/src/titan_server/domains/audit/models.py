@@ -102,6 +102,17 @@ class AuditEntry(Base):
             values_callable=lambda classes: [value.value for value in classes],
         ),
     )
+    # The tool's domain (decision #114), for the detailed view of tool activity
+    # (decision #119).
+    domain: Mapped[Domain] = mapped_column(
+        Enum(
+            Domain,
+            name="domain",
+            native_enum=False,
+            create_constraint=True,
+            values_callable=lambda domains: [domain.value for domain in domains],
+        )
+    )
     status: Mapped[EntryStatus] = mapped_column(
         Enum(
             EntryStatus,

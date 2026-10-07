@@ -30,7 +30,7 @@ class ToolContext:
     user_id: uuid.UUID
     # The thread the calls come from; None outside a chat (decision #112).
     thread_id: uuid.UUID | None
-    # Every call that ran in this turn, in order, for the reply to keep.
+    # Every call of this turn, run or not, in order, for the reply to keep.
     calls: list[ToolCallRecord] = field(default_factory=list)
 
 
@@ -59,6 +59,19 @@ class Tool[Input: BaseModel]:
     run: Callable[[ToolContext, Input], Awaitable[str]]
 
 
+def call_record(entry: AuditEntry) -> ToolCallRecord:
+    """What the reply keeps of entry's call, as it stands now (decision #119)."""
+    return {
+        "name": entry.tool,
+        "summary": entry.summary,
+        "status": entry.status.value,
+        "ok": entry.status == EntryStatus.DONE,
+        "entry_id": str(entry.id),
+        "domain": entry.domain.value,
+        "action_class": entry.action_class.value,
+    }
+
+
 async def run_call(
     tool: Tool[Any], context: ToolContext, entry: AuditEntry, tool_input: BaseModel
 ) -> str:
@@ -68,13 +81,9 @@ async def run_call(
     changes; its entry stays failed and the error goes on (decision #122).
     """
     session = context.session
-    record: ToolCallRecord = {
-        "name": tool.name,
-        "summary": entry.summary,
-        "ok": False,
-        "entry_id": str(entry.id),
-    }
     entry.status = EntryStatus.FAILED
+    # Built before the call: after a rollback the entry may not be read.
+    record = call_record(entry)
     try:
         # begin_nested flushes before the savepoint: the entry and what the
         # session held before the call are outside it, so its rollback keeps
@@ -87,7 +96,7 @@ async def run_call(
         # Only once the call's changes are kept: any failure above leaves the
         # entry failed.
         entry.status = EntryStatus.DONE
-        record["ok"] = True
+        record = call_record(entry)
     except BaseException:
         # The savepoint was rolled back, so the log keeps none of its changes.
         # The rollback expired the objects the tool changed: the caller must
@@ -122,6 +131,7 @@ def sdk_tool(tool: Tool[Any], context: ToolContext) -> SdkMcpTool[Any]:
             summary=summary,
             mode=mode,
             action_class=tool.action_class,
+            domain=tool.domain,
             input=tool_input.model_dump(mode="json"),
             status=EntryStatus.FAILED,
         )
@@ -129,6 +139,7 @@ def sdk_tool(tool: Tool[Any], context: ToolContext) -> SdkMcpTool[Any]:
         match mode:
             case Mode.DENY:
                 audit_entry.status = EntryStatus.DENIED
+                context.calls.append(call_record(audit_entry))
                 return {
                     "content": [
                         {
@@ -143,6 +154,7 @@ def sdk_tool(tool: Tool[Any], context: ToolContext) -> SdkMcpTool[Any]:
                 }
             case Mode.CONFIRM:
                 audit_entry.status = EntryStatus.PENDING
+                context.calls.append(call_record(audit_entry))
                 # Waiting is not an error: the model tells the user to approve.
                 return {
                     "content": [

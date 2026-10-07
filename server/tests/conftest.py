@@ -3,6 +3,7 @@
 import os
 import secrets
 from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
 
 import psycopg
 import pytest
@@ -19,9 +20,9 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-@pytest.fixture(scope="session")
-def database() -> Iterator[URL]:
-    """Create an empty database, migrate it to the latest version, drop it after.
+@contextmanager
+def empty_database() -> Iterator[URL]:
+    """Create an empty database and drop it after.
 
     TITAN_TEST_DATABASE_URL points to a PostgreSQL server where the user may
     create databases, for example
@@ -39,13 +40,26 @@ def database() -> Iterator[URL]:
     )
     with psycopg.connect(libpq, autocommit=True) as connection:
         connection.execute(f"CREATE DATABASE {name}")
-    url = server_url.set(database=name)
     try:
-        command.upgrade(alembic_config(url), "head")
-        yield url
+        yield server_url.set(database=name)
     finally:
         with psycopg.connect(libpq, autocommit=True) as connection:
             connection.execute(f"DROP DATABASE {name} WITH (FORCE)")
+
+
+@pytest.fixture(scope="session")
+def database() -> Iterator[URL]:
+    """A database migrated to the latest version, for the whole run."""
+    with empty_database() as url:
+        command.upgrade(alembic_config(url), "head")
+        yield url
+
+
+@pytest.fixture
+def unmigrated_database() -> Iterator[URL]:
+    """A database of the test's own with no tables, for testing migrations."""
+    with empty_database() as url:
+        yield url
 
 
 @pytest.fixture

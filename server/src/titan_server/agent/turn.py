@@ -45,7 +45,7 @@ class TextDelta:
 
 @dataclass(frozen=True)
 class ToolCalled:
-    """A tool call that ran, for the client to show (chat spec, tool activity)."""
+    """A tool call, run or not, for the client to show (chat spec, tool activity)."""
 
     call: ToolCallRecord
 
@@ -58,6 +58,14 @@ class ReplyStored:
 
 
 TurnEvent = TextDelta | ToolCalled | ReplyStored
+
+# How the history retells each status of a call (decision #119).
+RETOLD_STATUS = {
+    "done": "done",
+    "failed": "failed",
+    "pending": "waiting for approval",
+    "denied": "not allowed",
+}
 
 
 class TurnFailedError(Exception):
@@ -83,7 +91,9 @@ def prompt(earlier: Sequence[ChatMessage], text: str) -> str:
         lines.append(f'<message role="{message.role}">')
         lines.append(message.text)
         for call in message.tool_calls or []:
-            outcome = "done" if call["ok"] else "failed"
+            # A reply stored before decision #119 has only ok.
+            status = call.get("status", "done" if call["ok"] else "failed")
+            outcome = RETOLD_STATUS[status]
             lines.append(f"[{call['name']}: {call['summary']}, {outcome}]")
         lines.append("</message>")
     lines.append("</earlier_messages>")
