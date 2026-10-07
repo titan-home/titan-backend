@@ -19,6 +19,7 @@ from titan_server.domains.audit.models import (
     AuditChange,
     AuditEntry,
     EntryStatus,
+    Mode,
 )
 from titan_server.domains.tasks.models import Task, TaskStatus
 from titan_server.domains.tasks.service import create_task
@@ -69,6 +70,7 @@ async def new_entry(session: AsyncSession, user: User) -> AuditEntry:
         user_id=user.id,
         tool="create_task",
         action_class=ActionClass.WRITE_INTERNAL,
+        mode=Mode.AUTO_UNDO,
         input={"title": "Buy milk"},
         summary="Creating a task: Buy milk",
         status=EntryStatus.DONE,

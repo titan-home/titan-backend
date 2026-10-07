@@ -13,6 +13,7 @@ from titan_server.domains.audit.models import (
     AuditChange,
     AuditEntry,
     EntryStatus,
+    Mode,
 )
 from titan_server.domains.chat import service as chat
 
@@ -32,6 +33,7 @@ def create_task_entry(user: User, thread_id: uuid.UUID | None) -> AuditEntry:
         thread_id=thread_id,
         tool="create_task",
         action_class=ActionClass.WRITE_INTERNAL,
+        mode=Mode.AUTO_UNDO,
         input={"title": "Buy milk"},
         summary="Creating a task: Buy milk",
         status=EntryStatus.DONE,
