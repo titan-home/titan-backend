@@ -99,6 +99,26 @@ async def test_a_reply_keeps_its_tool_calls_and_tokens(session: AsyncSession) ->
     ) == ("claude-opus-5-5", 1200, 40, 900, 0)
 
 
+async def test_a_message_the_node_writes_has_no_model_or_tokens(
+    session: AsyncSession,
+) -> None:
+    """Decision #120: Claude was not asked, so there is no usage to keep."""
+    user = await new_user(session)
+    thread = await create_thread(session, user.id)
+
+    reply = await add_reply(session, thread, "Approved.", CREATED, None)
+    await session.refresh(reply)
+
+    assert (reply.role, reply.tool_calls) == (Role.ASSISTANT, CREATED)
+    assert (
+        reply.model,
+        reply.input_tokens,
+        reply.output_tokens,
+        reply.cache_write_tokens,
+        reply.cache_read_tokens,
+    ) == (None, None, None, None, None)
+
+
 async def test_a_new_message_moves_the_thread_up(session: AsyncSession) -> None:
     """Threads 2: the list is ordered by the last message."""
     user = await new_user(session)

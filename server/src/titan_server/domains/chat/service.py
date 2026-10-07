@@ -54,19 +54,20 @@ async def add_reply(
     thread: Thread,
     text: str,
     tool_calls: list[ToolCallRecord],
-    usage: Usage,
+    usage: Usage | None,
 ) -> Message:
-    """Add the assistant's reply with its tool calls and token usage."""
-    reply = Message(
-        role=Role.ASSISTANT,
-        text=text,
-        tool_calls=tool_calls,
-        model=usage.model,
-        input_tokens=usage.input_tokens,
-        output_tokens=usage.output_tokens,
-        cache_write_tokens=usage.cache_write_tokens,
-        cache_read_tokens=usage.cache_read_tokens,
-    )
+    """Add the assistant's reply with its tool calls and token usage.
+
+    usage is None for a message the node writes itself, such as the outcome
+    of an approved call: Claude was not asked (decision #120).
+    """
+    reply = Message(role=Role.ASSISTANT, text=text, tool_calls=tool_calls)
+    if usage is not None:
+        reply.model = usage.model
+        reply.input_tokens = usage.input_tokens
+        reply.output_tokens = usage.output_tokens
+        reply.cache_write_tokens = usage.cache_write_tokens
+        reply.cache_read_tokens = usage.cache_read_tokens
     return await _add(session, thread, reply)
 
 
