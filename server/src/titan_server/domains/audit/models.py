@@ -35,6 +35,16 @@ class ActionClass(enum.StrEnum):
     DESTRUCTIVE = "destructive"
 
 
+class Domain(enum.StrEnum):
+    """The area of the user's data a tool works in (decision #114).
+
+    A user's mode for a class can differ per domain (decision #10). A value is
+    added with the first tool of its domain.
+    """
+
+    TASKS = "tasks"
+
+
 class Mode(enum.StrEnum):
     """What happens when the agent calls a tool (autonomy spec, modes)."""
 

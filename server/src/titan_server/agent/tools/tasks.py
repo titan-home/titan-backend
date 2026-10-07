@@ -3,7 +3,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 from titan_server.agent.tool import Tool, ToolContext
-from titan_server.domains.audit.models import ActionClass
+from titan_server.domains.audit.models import ActionClass, Domain
 from titan_server.domains.tasks import service as tasks_service
 
 
@@ -44,6 +44,7 @@ create_task = Tool(
         " action, in the language the user wrote in, without dates or times."
     ),
     action_class=ActionClass.WRITE_INTERNAL,
+    domain=Domain.TASKS,
     # Undone by moving the task to the trash (decision #109).
     undoable=True,
     input_model=CreateTaskInput,
