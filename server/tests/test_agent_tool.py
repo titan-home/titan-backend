@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from titan_server.agent import policy
 from titan_server.agent.tool import Tool, ToolContext, sdk_tool
 from titan_server.domains.accounts.models import User
 from titan_server.domains.audit.models import (
@@ -19,6 +18,7 @@ from titan_server.domains.audit.models import (
     EntryStatus,
     Mode,
 )
+from titan_server.domains.policy.service import DEFAULT_MODES
 
 pytestmark = pytest.mark.anyio
 
@@ -160,7 +160,7 @@ async def test_a_call_that_needs_approval_does_not_run_and_waits(
     context: ToolContext, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Modes 4: confirm does not run; the call becomes an approval request."""
-    monkeypatch.setitem(policy.DEFAULT_MODES, ActionClass.READ, Mode.CONFIRM)
+    monkeypatch.setitem(DEFAULT_MODES, ActionClass.READ, Mode.CONFIRM)
 
     result = await sdk_tool(ECHO, context).handler({"word": "milk"})
 
@@ -176,7 +176,7 @@ async def test_a_denied_call_does_not_run_and_the_model_is_told(
     context: ToolContext, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Modes 5: deny does not run, and the agent is told it is not allowed."""
-    monkeypatch.setitem(policy.DEFAULT_MODES, ActionClass.READ, Mode.DENY)
+    monkeypatch.setitem(DEFAULT_MODES, ActionClass.READ, Mode.DENY)
 
     result = await sdk_tool(ECHO, context).handler({"word": "milk"})
 

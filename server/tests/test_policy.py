@@ -2,8 +2,9 @@
 
 import pytest
 
-from titan_server.agent.policy import DEFAULT_MODES, mode_for
+from titan_server.agent.policy import mode_for
 from titan_server.domains.audit.models import ActionClass, Mode
+from titan_server.domains.policy.service import DEFAULT_MODES
 
 
 @pytest.mark.parametrize(
