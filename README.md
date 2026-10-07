@@ -119,6 +119,15 @@ Claude Code starts with only the variables it needs, never the api's own
 (`agent/clean_claude.py`). The regular tests never call Claude; they play
 it with scripted replies.
 
+### Paged lists
+
+Lists, such as the approval requests, are paged by a cursor
+([decision #124](shared/docs/decisions/README.md#register)); the api reads:
+
+| Variable | What it is |
+|---|---|
+| `TITAN_DEFAULT_MAX_PAGE_SIZE` | The most items one page of a list holds; a larger `limit` is capped to it; 100 unless set |
+
 ## Getting the code
 
 ```sh

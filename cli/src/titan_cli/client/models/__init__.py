@@ -1,6 +1,8 @@
 """Contains all the data models used in inputs/outputs"""
 
 from titan_cli.client.models.action_class import ActionClass
+from titan_cli.client.models.approval_out import ApprovalOut
+from titan_cli.client.models.approval_page import ApprovalPage
 from titan_cli.client.models.chat_done_event import ChatDoneEvent
 from titan_cli.client.models.chat_error_event import ChatErrorEvent
 from titan_cli.client.models.chat_text_event import ChatTextEvent
@@ -9,6 +11,7 @@ from titan_cli.client.models.chat_tool_call_event_status import ChatToolCallEven
 from titan_cli.client.models.device_registration_in import DeviceRegistrationIn
 from titan_cli.client.models.device_registration_out import DeviceRegistrationOut
 from titan_cli.client.models.domain import Domain
+from titan_cli.client.models.entry_status import EntryStatus
 from titan_cli.client.models.field_error import FieldError
 from titan_cli.client.models.message_in import MessageIn
 from titan_cli.client.models.mode import Mode
@@ -21,6 +24,8 @@ from titan_cli.client.models.whoami_out import WhoamiOut
 
 __all__ = (
     "ActionClass",
+    "ApprovalOut",
+    "ApprovalPage",
     "ChatDoneEvent",
     "ChatErrorEvent",
     "ChatTextEvent",
@@ -29,6 +34,7 @@ __all__ = (
     "DeviceRegistrationIn",
     "DeviceRegistrationOut",
     "Domain",
+    "EntryStatus",
     "FieldError",
     "MessageIn",
     "Mode",
