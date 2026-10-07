@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Enum, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from titan_server.db import Base
+from titan_server.db import Audited, Base, active_history_mapped_column
 
 
 class TaskStatus(enum.StrEnum):
@@ -18,17 +18,17 @@ class TaskStatus(enum.StrEnum):
     CANCELLED = "cancelled"
 
 
-class Task(Base):
+class Task(Audited, Base):
     """Something one user has to do."""
 
     __tablename__ = "tasks"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
-    title: Mapped[str]
+    user_id: Mapped[uuid.UUID] = active_history_mapped_column(ForeignKey("users.id"))
+    title: Mapped[str] = active_history_mapped_column()
     # A string with a check rather than a PostgreSQL enum type: a status added
     # later is a new check, not an ALTER TYPE.
-    status: Mapped[TaskStatus] = mapped_column(
+    status: Mapped[TaskStatus] = active_history_mapped_column(
         Enum(
             TaskStatus,
             name="task_status",
@@ -38,6 +38,6 @@ class Task(Base):
         ),
         default=TaskStatus.OPEN,
     )
-    created_at: Mapped[datetime] = mapped_column(
+    created_at: Mapped[datetime] = active_history_mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
