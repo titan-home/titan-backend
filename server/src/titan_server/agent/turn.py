@@ -59,13 +59,10 @@ class ReplyStored:
 
 TurnEvent = TextDelta | ToolCalled | ReplyStored
 
-# How the history retells each status of a call (decision #119).
-RETOLD_STATUS = {
-    "done": "done",
-    "failed": "failed",
-    "pending": "waiting for approval",
-    "denied": "not allowed",
-}
+# How the history retells a call's status (decision #119); any other status,
+# such as done, failed, rejected or expired, is retold as it is, so a record
+# never breaks the turns after it.
+RETOLD_STATUS = {"pending": "waiting for approval", "denied": "not allowed"}
 
 
 class TurnFailedError(Exception):
@@ -93,7 +90,7 @@ def prompt(earlier: Sequence[ChatMessage], text: str) -> str:
         for call in message.tool_calls or []:
             # A reply stored before decision #119 has only ok.
             status = call.get("status", "done" if call["ok"] else "failed")
-            outcome = RETOLD_STATUS[status]
+            outcome = RETOLD_STATUS.get(status, status)
             lines.append(f"[{call['name']}: {call['summary']}, {outcome}]")
         lines.append("</message>")
     lines.append("</earlier_messages>")

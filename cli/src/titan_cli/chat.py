@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from typing import assert_never
 
 import httpx
@@ -20,14 +21,30 @@ from titan_cli.client.models import (
 )
 from titan_cli.node import CliError, api_client
 
-ChatEvent = ChatTextEvent | ChatToolCallEvent | ChatDoneEvent | ChatErrorEvent
+
+@dataclass(frozen=True)
+class NewerToolCall:
+    """A tool call with a status, domain or class this CLI does not know yet.
+
+    A newer node may add values (development rules, section 9); the call is
+    still shown, with its status as the node sent it.
+    """
+
+    name: str
+    summary: str
+    status: str
+
+
+# The events as the contract describes them.
+NodeEvent = ChatTextEvent | ChatToolCallEvent | ChatDoneEvent | ChatErrorEvent
+ChatEvent = NodeEvent | NewerToolCall
 
 # The node pings a quiet stream every 15 seconds, so a minute of silence
 # means the connection is gone.
 STREAM_TIMEOUT = httpx.Timeout(10.0, read=60.0)
 
 DATA_PREFIX = "data:"
-EVENT_CLASSES: dict[str, type[ChatEvent]] = {
+EVENT_CLASSES: dict[str, type[NodeEvent]] = {
     "done": ChatDoneEvent,
     "error": ChatErrorEvent,
     "text": ChatTextEvent,
@@ -104,7 +121,17 @@ def _parse_event(data: str) -> ChatEvent | None:
     try:
         fields = json.loads(data)
         event_class = EVENT_CLASSES.get(fields["type"])
-        return None if event_class is None else event_class.from_dict(fields)
+        if event_class is None:
+            return None
+        try:
+            return event_class.from_dict(fields)
+        except ValueError:
+            # The generated enums refuse a value they do not know.
+            if event_class is not ChatToolCallEvent:
+                raise
+            return NewerToolCall(
+                str(fields["name"]), str(fields["summary"]), str(fields["status"])
+            )
     except (KeyError, TypeError, ValueError):
         raise CliError("the node sent an event titan cannot read") from None
 
@@ -130,10 +157,11 @@ def print_reply(events: Iterable[ChatEvent]) -> None:
     Text is printed as it comes, without waiting for a whole line. Each tool
     call gets a line of its own, `· name: summary` and its status: `✓` done,
     `✗` failed, `⏳ waiting for approval: titan approve <entry id>` pending,
-    `⊘ not allowed` denied (decision #119). `done` ends the reply with a
-    newline. `error` ends it with CliError and the event's title. A stream
-    that ends with neither was cut off: CliError says so, and that the node
-    still finishes and keeps the reply (decision #36).
+    `⊘ not allowed` denied (decision #119); a status this CLI does not know
+    is printed as the node sent it. `done` ends the reply with a newline.
+    `error` ends it with CliError and the event's title. A stream that ends
+    with neither was cut off: CliError says so, and that the node still
+    finishes and keeps the reply (decision #36).
     """
     is_line_open = False
     for event in events:
@@ -147,6 +175,8 @@ def print_reply(events: Iterable[ChatEvent]) -> None:
                     is_line_open = not event.text.endswith("\n")
             case ChatToolCallEvent():
                 print(f"· {event.name}: {event.summary} {_status(event)}")
+            case NewerToolCall():
+                print(f"· {event.name}: {event.summary} {event.status}")
             case ChatDoneEvent():
                 return
             case ChatErrorEvent():

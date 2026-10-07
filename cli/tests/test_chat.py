@@ -209,6 +209,18 @@ def test_a_tool_call_shows_its_status(
     assert capsys.readouterr().out == f"{line}\n"
 
 
+def test_a_tool_call_with_values_from_a_newer_node_still_prints(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Decision #119: an older titan chat shows the status as the node sent it."""
+    newer = {**CALL_FIELDS, "status": "expired", "domain": "calendar", "ok": False}
+    lines = [f"data: {json.dumps(newer)}", 'data: {"type": "text", "text": "Ok."}']
+
+    print_reply([*read_events(lines), DONE])
+
+    assert capsys.readouterr().out == "· create_task: Buy milk expired\nOk.\n"
+
+
 def test_an_empty_piece_of_text_keeps_the_line_open(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
