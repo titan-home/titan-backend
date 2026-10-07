@@ -103,7 +103,7 @@ def test_claude_code_gets_our_prompt_and_tools_and_nothing_of_its_own(
     token_file = tmp_path / "claude_token"
     token_file.write_text(TOKEN + "\n")
     monkeypatch.setenv("TITAN_CLAUDE_TOKEN_FILE", str(token_file))
-    context = ToolContext(session=None, user_id=None)  # type: ignore[arg-type]
+    context = ToolContext(session=None, user_id=None, thread_id=None)  # type: ignore[arg-type]
 
     options = claude_options("prompt", [sdk_tool(create_task, context)], tmp_path)
 

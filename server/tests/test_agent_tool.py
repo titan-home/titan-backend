@@ -6,10 +6,12 @@ from typing import Any, cast
 
 import pytest
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_server.agent.tool import Tool, ToolContext, sdk_tool
-from titan_server.domains.audit.models import ActionClass
+from titan_server.domains.accounts.models import User
+from titan_server.domains.audit.models import ActionClass, AuditEntry, EntryStatus
 
 pytestmark = pytest.mark.anyio
 
@@ -37,14 +39,23 @@ ECHO = Tool(
 
 
 @pytest.fixture
-def context() -> ToolContext:
+async def context(session: AsyncSession) -> ToolContext:
+    """A call made by a real user, outside a chat."""
     calls.clear()
-    return ToolContext(session=cast(AsyncSession, None), user_id=uuid.uuid4())
+    user = User(username="owner", password_hash="$argon2id$v=19$placeholder")
+    session.add(user)
+    await session.flush()
+    return ToolContext(session=session, user_id=user.id, thread_id=None)
 
 
-def test_the_model_sees_the_name_description_and_input_schema(
-    context: ToolContext,
-) -> None:
+async def entries(context: ToolContext) -> list[AuditEntry]:
+    return list(await context.session.scalars(select(AuditEntry)))
+
+
+def test_the_model_sees_the_name_description_and_input_schema() -> None:
+    context = ToolContext(
+        session=cast(AsyncSession, None), user_id=uuid.uuid4(), thread_id=None
+    )
     sdk = sdk_tool(ECHO, context)
 
     assert (sdk.name, sdk.description) == ("echo", "Repeat a word.")
@@ -66,7 +77,39 @@ async def test_every_call_is_recorded_with_its_summary_and_outcome(
     """Chat spec, tool activity 1: name, summary and whether it succeeded."""
     await sdk_tool(ECHO, context).handler({"word": "milk"})
 
-    assert context.calls == [{"name": "echo", "summary": "Echoing milk", "ok": True}]
+    [entry] = await entries(context)
+    assert context.calls == [
+        {
+            "name": "echo",
+            "summary": "Echoing milk",
+            "ok": True,
+            "entry_id": str(entry.id),
+        }
+    ]
+
+
+async def test_every_call_is_written_to_the_audit_log(context: ToolContext) -> None:
+    """Autonomy spec, audit log 1: when, which tool, its class, input, outcome."""
+    await sdk_tool(ECHO, context).handler({"word": "milk"})
+
+    [entry] = await entries(context)
+    assert (
+        entry.user_id,
+        entry.thread_id,
+        entry.tool,
+        entry.action_class,
+        entry.input,
+        entry.summary,
+        entry.status,
+    ) == (
+        context.user_id,
+        None,
+        "echo",
+        ActionClass.READ,
+        {"word": "milk"},
+        "Echoing milk",
+        EntryStatus.DONE,
+    )
 
 
 async def test_a_call_that_fails_is_recorded_as_failed(context: ToolContext) -> None:
@@ -78,7 +121,16 @@ async def test_a_call_that_fails_is_recorded_as_failed(context: ToolContext) -> 
     with pytest.raises(RuntimeError):
         await sdk_tool(failing, context).handler({"word": "milk"})
 
-    assert context.calls == [{"name": "echo", "summary": "Echoing milk", "ok": False}]
+    [entry] = await entries(context)
+    assert entry.status == EntryStatus.FAILED
+    assert context.calls == [
+        {
+            "name": "echo",
+            "summary": "Echoing milk",
+            "ok": False,
+            "entry_id": str(entry.id),
+        }
+    ]
 
 
 @pytest.mark.parametrize("arguments", [{}, {"word": ""}, {"word": 5}])
@@ -90,3 +142,5 @@ async def test_invalid_input_is_an_error_for_the_model_and_runs_nothing(
     assert result["is_error"] is True
     assert calls == []
     assert context.calls == []
+    # The model's mistake, not a call: nothing ran, so nothing is logged.
+    assert await entries(context) == []

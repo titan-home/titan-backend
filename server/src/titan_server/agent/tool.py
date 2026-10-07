@@ -9,7 +9,8 @@ from claude_agent_sdk import SdkMcpTool
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from titan_server.domains.audit.models import ActionClass
+from titan_server.domains.audit.capture import finish_call, start_call
+from titan_server.domains.audit.models import ActionClass, AuditEntry, EntryStatus
 from titan_server.domains.chat.models import ToolCallRecord
 
 
@@ -19,6 +20,8 @@ class ToolContext:
 
     session: AsyncSession
     user_id: uuid.UUID
+    # The thread the calls come from; None outside a chat (decision #112).
+    thread_id: uuid.UUID | None
     # Every call that ran in this turn, in order, for the reply to keep.
     calls: list[ToolCallRecord] = field(default_factory=list)
 
@@ -51,15 +54,34 @@ def sdk_tool(tool: Tool[Any], context: ToolContext) -> SdkMcpTool[Any]:
             tool_input = tool.input_model.model_validate(arguments)
         except ValidationError as error:
             return {"content": [{"type": "text", "text": str(error)}], "is_error": True}
+        summary = tool.summary(tool_input)
+        # Every call that runs is in the audit log, failed ones too (autonomy
+        # spec, audit log 1); it is failed until the run returns.
+        entry = AuditEntry(
+            id=uuid.uuid4(),
+            user_id=context.user_id,
+            thread_id=context.thread_id,
+            tool=tool.name,
+            action_class=tool.action_class,
+            input=tool_input.model_dump(mode="json"),
+            summary=summary,
+            status=EntryStatus.FAILED,
+        )
+        context.session.add(entry)
         record: ToolCallRecord = {
             "name": tool.name,
-            "summary": tool.summary(tool_input),
+            "summary": summary,
             "ok": False,
+            "entry_id": str(entry.id),
         }
+        # What the run changes in Audited objects becomes the entry's changes.
+        start_call(context.session, entry)
         try:
             text = await tool.run(context, tool_input)
+            entry.status = EntryStatus.DONE
             record["ok"] = True
         finally:
+            await finish_call(context.session)
             context.calls.append(record)
         return {"content": [{"type": "text", "text": text}]}
 

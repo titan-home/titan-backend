@@ -29,6 +29,7 @@ from titan_server.agent.turn import (
     system_prompt,
 )
 from titan_server.domains.accounts.models import User
+from titan_server.domains.audit.models import AuditChange, AuditEntry, EntryStatus
 from titan_server.domains.chat import service as chat
 from titan_server.domains.chat.models import Message as ChatMessage
 from titan_server.domains.chat.models import Role, Thread, ToolCallRecord
@@ -113,10 +114,12 @@ async def test_add_a_task_to_buy_milk(session: AsyncSession) -> None:
 
     [task] = await session.scalars(select(Task).where(Task.user_id == thread.user_id))
     assert task.title == "Buy milk"
+    [entry] = await session.scalars(select(AuditEntry))
     call: ToolCallRecord = {
         "name": "create_task",
         "summary": "Creating a task: Buy milk",
         "ok": True,
+        "entry_id": str(entry.id),
     }
     assert events[:-1] == [ToolCalled(call), TextDelta("Added"), TextDelta("it.")]
     assert isinstance(events[-1], ReplyStored)
@@ -128,6 +131,35 @@ async def test_add_a_task_to_buy_milk(session: AsyncSession) -> None:
         "Added it.",
     )
     assert reply.tool_calls == [call]
+
+
+async def test_the_call_is_in_the_audit_log_with_the_whole_task(
+    session: AsyncSession,
+) -> None:
+    """Stage 3: the entry knows its thread (decision #112) and keeps the row."""
+    thread = await new_thread(session)
+    claude = Claude(calls=[("create_task", {"title": "Buy milk"})], reply="Added it.")
+
+    await turn(session, thread, "add a task to buy milk", claude)
+
+    [task] = await session.scalars(select(Task).where(Task.user_id == thread.user_id))
+    [entry] = await session.scalars(select(AuditEntry))
+    assert (entry.thread_id, entry.tool, entry.status) == (
+        thread.id,
+        "create_task",
+        EntryStatus.DONE,
+    )
+    [change] = await session.scalars(
+        select(AuditChange).where(AuditChange.entry_id == entry.id)
+    )
+    assert (change.table_name, change.object_id, change.before, change.version) == (
+        "tasks",
+        task.id,
+        None,
+        1,
+    )
+    assert change.after is not None
+    assert change.after["title"] == "Buy milk"
 
 
 async def test_the_reply_keeps_its_model_and_tokens(session: AsyncSession) -> None:
@@ -320,6 +352,12 @@ async def test_a_tool_call_is_reported_only_once_it_has_finished(
         if isinstance(event, ToolCalled)
     ]
 
+    [entry] = await session.scalars(select(AuditEntry))
     assert reported == [
-        {"name": "create_task", "summary": "Creating a task: Buy milk", "ok": True}
+        {
+            "name": "create_task",
+            "summary": "Creating a task: Buy milk",
+            "ok": True,
+            "entry_id": str(entry.id),
+        }
     ]

@@ -107,7 +107,7 @@ async def run_turn(
     earlier = (await chat.history(session, thread))[-HISTORY_LIMIT:]
     await chat.add_user_message(session, thread, text)
 
-    context = ToolContext(session=session, user_id=user_id)
+    context = ToolContext(session=session, user_id=user_id, thread_id=thread.id)
     tools = [sdk_tool(tool, context) for tool in TOOLS]
     reported = 0
     texts: list[str] = []

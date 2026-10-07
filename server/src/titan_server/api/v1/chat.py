@@ -154,7 +154,12 @@ async def turn(
                 if isinstance(event, TextDelta):
                     events.put_nowait(ChatTextEvent(text=event.text))
                 elif isinstance(event, ToolCalled):
-                    events.put_nowait(ChatToolCallEvent(**event.call))
+                    call = event.call
+                    events.put_nowait(
+                        ChatToolCallEvent(
+                            name=call["name"], summary=call["summary"], ok=call["ok"]
+                        )
+                    )
                 elif isinstance(event, ReplyStored):
                     reply = ChatDoneEvent(message_id=event.reply_id)
         # Told only once the reply is committed.
