@@ -32,6 +32,7 @@ ECHO = Tool(
     name="echo",
     description="Repeat a word.",
     action_class=ActionClass.READ,
+    undoable=False,
     input_model=EchoInput,
     summary=lambda echo_input: f"Echoing {echo_input.word}",
     run=echo_run,

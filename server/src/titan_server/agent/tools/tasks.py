@@ -44,6 +44,8 @@ create_task = Tool(
         " action, in the language the user wrote in, without dates or times."
     ),
     action_class=ActionClass.WRITE_INTERNAL,
+    # Undone by moving the task to the trash (decision #109).
+    undoable=True,
     input_model=CreateTaskInput,
     summary=_summary,
     run=_create,
