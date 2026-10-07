@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -63,10 +63,10 @@ class EntryStatus(enum.StrEnum):
 
     # Waits for the user's approval.
     PENDING = "pending"
-    APPROVED = "approved"
     REJECTED = "rejected"
     # Not decided within 24 hours; counts as rejected.
     EXPIRED = "expired"
+    # Ran, at once or once approved (decision #123); its mode tells which.
     DONE = "done"
     FAILED = "failed"
     # The policy does not allow the call; the agent is told so.
@@ -77,6 +77,16 @@ class AuditEntry(Base):
     """One tool call: what was called, for whom, and where it stands."""
 
     __tablename__ = "audit_entries"
+    __table_args__ = (
+        # A user's pending requests, in the order they are paged (decision #124).
+        Index(
+            "ix_audit_entries_pending",
+            "user_id",
+            "created_at",
+            "id",
+            postgresql_where=text("status = 'pending'"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
