@@ -10,7 +10,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_server.agent.policy import mode_for
-from titan_server.domains.audit.capture import finish_call, start_call
+from titan_server.domains.audit.capture import drop_call, finish_call, start_call
 from titan_server.domains.audit.models import (
     ActionClass,
     AuditEntry,
@@ -62,21 +62,39 @@ class Tool[Input: BaseModel]:
 async def run_call(
     tool: Tool[Any], context: ToolContext, entry: AuditEntry, tool_input: BaseModel
 ) -> str:
-    """Run a call of tool for its entry, record how it went, return the tool's text."""
+    """Run a call of tool for its entry, record how it went, return the tool's text.
+
+    The tool runs in a savepoint, so a call that raises leaves none of its
+    changes; its entry stays failed and the error goes on (decision #122).
+    """
+    session = context.session
     record: ToolCallRecord = {
         "name": tool.name,
         "summary": entry.summary,
         "ok": False,
         "entry_id": str(entry.id),
     }
-    # What the run changes in Audited objects becomes the entry's changes.
-    start_call(context.session, entry)
+    entry.status = EntryStatus.FAILED
     try:
-        text = await tool.run(context, tool_input)
+        # begin_nested flushes before the savepoint: the entry and what the
+        # session held before the call are outside it, so its rollback keeps
+        # them, and the capture starts after them, so they are not the call's.
+        async with session.begin_nested():
+            # What the run changes in Audited objects becomes the entry's changes.
+            start_call(session, entry)
+            text = await tool.run(context, tool_input)
+        await finish_call(session)
+        # Only once the call's changes are kept: any failure above leaves the
+        # entry failed.
         entry.status = EntryStatus.DONE
         record["ok"] = True
+    except BaseException:
+        # The savepoint was rolled back, so the log keeps none of its changes.
+        # The rollback expired the objects the tool changed: the caller must
+        # not read them synchronously, a lazy load raises MissingGreenlet.
+        drop_call(session)
+        raise
     finally:
-        await finish_call(context.session)
         context.calls.append(record)
     return text
 

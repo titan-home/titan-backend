@@ -7,18 +7,22 @@ from typing import Any, cast
 import pytest
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_server.agent.tool import Tool, ToolContext, run_call, sdk_tool
 from titan_server.domains.accounts.models import User
 from titan_server.domains.audit.models import (
     ActionClass,
+    AuditChange,
     AuditEntry,
     Domain,
     EntryStatus,
     Mode,
 )
 from titan_server.domains.policy.service import DEFAULT_MODES
+from titan_server.domains.tasks.models import Task
+from titan_server.domains.tasks.service import create_task
 
 pytestmark = pytest.mark.anyio
 
@@ -218,3 +222,94 @@ async def test_run_call_runs_the_tool_and_records_it(context: ToolContext) -> No
             "entry_id": str(entry.id),
         }
     ]
+
+
+async def create_run(context: ToolContext, echo_input: EchoInput) -> str:
+    task = await create_task(context.session, context.user_id, echo_input.word)
+    return f"created {task.title}"
+
+
+CREATE = dataclasses.replace(ECHO, run=create_run)
+
+
+async def changes_of(context: ToolContext, entry: AuditEntry) -> list[AuditChange]:
+    return list(
+        await context.session.scalars(
+            select(AuditChange).where(AuditChange.entry_id == entry.id)
+        )
+    )
+
+
+async def test_changes_from_before_a_call_are_not_its_changes(
+    context: ToolContext,
+) -> None:
+    earlier = await create_task(context.session, context.user_id, "Buy bread")
+    # Not flushed yet when the call starts.
+    earlier.title = "Buy rye bread"
+    entry = new_entry(context)
+
+    await run_call(CREATE, context, entry, EchoInput(word="Buy milk"))
+
+    [change] = await changes_of(context, entry)
+    assert change.object_id != earlier.id
+    assert change.after is not None
+    assert change.after["title"] == "Buy milk"
+
+
+async def test_a_failed_call_leaves_none_of_its_changes(context: ToolContext) -> None:
+    """Decision #122: the call runs in a savepoint, its entry stays failed."""
+
+    async def create_then_fail(context: ToolContext, echo_input: EchoInput) -> str:
+        await create_task(context.session, context.user_id, echo_input.word)
+        raise RuntimeError("the database is down")
+
+    failing = dataclasses.replace(ECHO, run=create_then_fail)
+    # Made and changed in the same session before the call, the change not
+    # flushed yet: none of it is the call's to take back.
+    earlier = await create_task(context.session, context.user_id, "Buy bread")
+    earlier.title = "Buy rye bread"
+    entry = new_entry(context)
+
+    with pytest.raises(RuntimeError):
+        await run_call(failing, context, entry, EchoInput(word="Buy milk"))
+
+    titles = await context.session.scalars(select(Task.title))
+    assert list(titles) == ["Buy rye bread"]
+    status = await context.session.scalar(
+        select(AuditEntry.status).where(AuditEntry.id == entry.id)
+    )
+    assert status == EntryStatus.FAILED
+    assert [record["ok"] for record in context.calls] == [False]
+    assert list(await context.session.scalars(select(AuditChange))) == []
+
+
+async def test_a_call_that_breaks_a_constraint_leaves_the_session_usable(
+    context: ToolContext,
+) -> None:
+    async def create_for_nobody(context: ToolContext, echo_input: EchoInput) -> str:
+        # No such user: the flush inside the call breaks the foreign key.
+        await create_task(context.session, uuid.uuid4(), echo_input.word)
+        return "unreachable"
+
+    breaking = dataclasses.replace(ECHO, run=create_for_nobody)
+
+    with pytest.raises(IntegrityError):
+        await run_call(breaking, context, new_entry(context), EchoInput(word="x"))
+
+    entry = new_entry(context)
+    await run_call(CREATE, context, entry, EchoInput(word="Buy milk"))
+
+    [change] = await changes_of(context, entry)
+    assert change.after is not None
+    assert change.after["title"] == "Buy milk"
+
+
+async def test_a_call_whose_entry_cannot_be_written_raises_the_database_error(
+    context: ToolContext,
+) -> None:
+    entry = new_entry(context)
+    # No such user: the flush before the savepoint breaks the foreign key.
+    entry.user_id = uuid.uuid4()
+
+    with pytest.raises(IntegrityError):
+        await run_call(ECHO, context, entry, EchoInput(word="milk"))

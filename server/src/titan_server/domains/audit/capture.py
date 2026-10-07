@@ -1,7 +1,8 @@
 """Catching what a tool call changes, from the session as it flushes (decision #110).
 
 While a call is current, every flush adds the changes of Audited objects to
-it; finish_call turns them into one AuditChange per object (decision #108).
+it; finish_call turns them into one AuditChange per object (decision #108),
+and drop_call forgets them when the call was rolled back (decision #122).
 Values are stored in JSONB as Pydantic writes them in JSON mode, by the
 column's Python type, and read back the same way for an undo.
 """
@@ -182,3 +183,10 @@ async def finish_call(session: AsyncSession) -> None:
                 version=change.version,
             )
         )
+
+
+def drop_call(session: AsyncSession) -> None:
+    """End the current call without recording its changes: they were rolled back."""
+    # A savepoint that failed to open never started the call: nothing to end.
+    session.info.pop(AUDIT_ENTRY, None)
+    session.info.pop(AUDIT_CHANGES, None)
