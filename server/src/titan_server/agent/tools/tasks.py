@@ -2,7 +2,8 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from titan_server.agent.tool import ActionClass, Tool, ToolContext
+from titan_server.agent.tool import Tool, ToolContext
+from titan_server.domains.audit.models import ActionClass
 from titan_server.domains.tasks import service as tasks_service
 
 

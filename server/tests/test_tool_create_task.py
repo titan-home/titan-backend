@@ -6,9 +6,10 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from titan_server.agent.tool import ActionClass, ToolContext, sdk_tool
+from titan_server.agent.tool import ToolContext, sdk_tool
 from titan_server.agent.tools.tasks import CreateTaskInput, create_task
 from titan_server.domains.accounts.models import User
+from titan_server.domains.audit.models import ActionClass
 from titan_server.domains.tasks.models import Task, TaskStatus
 
 pytestmark = pytest.mark.anyio
