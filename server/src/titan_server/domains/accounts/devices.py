@@ -5,7 +5,7 @@ import base64
 import hashlib
 import secrets
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_server.domains.accounts.models import Device, User
@@ -51,11 +51,9 @@ async def sign_in(
         old_token_hash = hash_token(old_token)
         device = await session.scalar(
             select(Device).where(
-                and_(
-                    Device.token_hash == old_token_hash,
-                    Device.user_id == user.id,
-                    Device.revoked_at.is_(None),
-                )
+                Device.token_hash == old_token_hash,
+                Device.user_id == user.id,
+                Device.revoked_at.is_(None),
             )
         )
 
