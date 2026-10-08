@@ -37,6 +37,7 @@ def create_task_entry(user: User, thread_id: uuid.UUID | None) -> AuditEntry:
         domain=Domain.TASKS,
         mode=Mode.AUTO_UNDO,
         input={"title": "Buy milk"},
+        undoable=True,
         summary="Creating a task: Buy milk",
         status=EntryStatus.DONE,
     )

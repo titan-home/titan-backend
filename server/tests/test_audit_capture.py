@@ -76,6 +76,7 @@ async def new_entry(session: AsyncSession, user: User) -> AuditEntry:
         domain=Domain.TASKS,
         mode=Mode.AUTO_UNDO,
         input={"title": "Buy milk"},
+        undoable=True,
         summary="Creating a task: Buy milk",
         status=EntryStatus.DONE,
     )

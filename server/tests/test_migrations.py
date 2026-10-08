@@ -109,3 +109,54 @@ def test_removing_approved_keeps_the_entries_and_refuses_it(
             ]
     finally:
         engine.dispose()
+
+
+def test_entries_written_before_undo_can_be_undone_once(
+    unmigrated_database: URL,
+) -> None:
+    """Decisions #130 and #131: create_task can be undone, an entry only once."""
+    url = unmigrated_database
+    # The revision before entries kept undoable.
+    command.upgrade(alembic_config(url), "b0b00ff7627f")
+    engine = create_engine(url)
+    try:
+        user_id, entry_id = uuid.uuid4(), uuid.uuid4()
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, username, password_hash, is_owner)"
+                    " VALUES (:id, 'owner', 'hash', true)"
+                ),
+                {"id": user_id},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO audit_entries (id, user_id, tool, summary, mode,"
+                    " action_class, domain, status, input) VALUES (:id, :user,"
+                    " 'create_task', 'Creating a task: Buy milk', 'auto-undo',"
+                    " 'write-internal', 'tasks', 'done', '{}')"
+                ),
+                {"id": entry_id, "user": user_id},
+            )
+
+        command.upgrade(alembic_config(url), "head")
+
+        with engine.begin() as connection:
+            undoable = connection.execute(
+                text("SELECT undoable FROM audit_entries WHERE id = :id"),
+                {"id": entry_id},
+            ).scalar_one()
+            assert undoable is True
+            undo = text(
+                "INSERT INTO audit_entries (id, user_id, tool, summary, mode,"
+                " action_class, domain, status, input, undoable, undoes_entry_id)"
+                " VALUES (gen_random_uuid(), :user, 'undo',"
+                " 'Undo: Creating a task: Buy milk', NULL, 'write-internal',"
+                " 'tasks', 'done', '{}', true, :undone)"
+            )
+            # An undo has no mode.
+            connection.execute(undo, {"user": user_id, "undone": entry_id})
+            with pytest.raises(IntegrityError), connection.begin_nested():
+                connection.execute(undo, {"user": user_id, "undone": entry_id})
+    finally:
+        engine.dispose()

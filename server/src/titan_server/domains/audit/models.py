@@ -95,7 +95,9 @@ class AuditEntry(Base):
     )
     tool: Mapped[str]
     summary: Mapped[str]
-    mode: Mapped[Mode] = mapped_column(
+    # Empty for an undo: the user's own act, which the policy does not decide
+    # (decision #131).
+    mode: Mapped[Mode | None] = mapped_column(
         Enum(
             Mode,
             name="mode",
@@ -134,6 +136,14 @@ class AuditEntry(Base):
         ),
     )
     input: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    # The tool's undoable when it was called, so a tool changed or removed
+    # later does not change the undo of past calls (decision #130).
+    undoable: Mapped[bool]
+    # The entry this undo took back; unique, so an entry is undone once
+    # (decision #131).
+    undoes_entry_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("audit_entries.id"), unique=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.clock_timestamp()
     )
