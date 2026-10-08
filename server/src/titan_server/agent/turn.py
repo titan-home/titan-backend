@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from titan_server.agent.claude import ask_claude
 from titan_server.agent.tool import Tool, ToolContext, sdk_tool
 from titan_server.agent.tools.tasks import create_task
+from titan_server.domains.audit import approvals
 from titan_server.domains.chat import service as chat
 from titan_server.domains.chat.models import Message as ChatMessage
 from titan_server.domains.chat.models import ToolCallRecord
@@ -103,14 +104,19 @@ async def run_turn(
     thread_id: uuid.UUID,
     text: str,
     now: datetime,
+    expired_before: datetime,
     ask: Ask = ask_claude,
 ) -> AsyncIterator[TurnEvent]:
     """Store the user's message, ask Claude with the tools, store the reply.
 
-    Raises ThreadNotFoundError for another user's thread and TurnFailedError
-    when Claude does not finish. The caller commits the session.
+    The thread's requests past their deadline expire first, so Claude reads
+    that they will not run (decision #125); expired_before is as for
+    approvals.lock_pending. Raises ThreadNotFoundError for another user's
+    thread and TurnFailedError when Claude does not finish. The caller
+    commits the session.
     """
     thread = await chat.get_thread(session, user_id, thread_id)
+    await approvals.expire_overdue(session, user_id, thread.id, expired_before)
     earlier = (await chat.history(session, thread))[-HISTORY_LIMIT:]
     await chat.add_user_message(session, thread, text)
 

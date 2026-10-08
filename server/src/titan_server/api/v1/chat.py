@@ -17,6 +17,7 @@ from titan_server.agent.claude import ask_claude
 from titan_server.agent.turn import Ask, ReplyStored, TextDelta, ToolCalled, run_turn
 from titan_server.api.dependencies import BackgroundSessions, CurrentDevice, Session
 from titan_server.api.problems import problems
+from titan_server.api.v1.approvals import expired_before
 from titan_server.domains.audit.models import ActionClass, Domain
 from titan_server.domains.chat import service as chat
 from titan_server.domains.chat.models import Thread
@@ -158,8 +159,15 @@ async def turn(
     reply: ChatEvent = FAILED
     try:
         async with sessions() as session, session.begin():
+            now = datetime.now(UTC)
             turn_events = run_turn(
-                session, thread.user_id, thread.id, text, datetime.now(UTC), ask
+                session,
+                thread.user_id,
+                thread.id,
+                text,
+                now,
+                expired_before(now),
+                ask,
             )
             async for event in turn_events:
                 if isinstance(event, TextDelta):

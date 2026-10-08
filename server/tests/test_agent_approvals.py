@@ -4,6 +4,7 @@ import asyncio
 import dataclasses
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select, text
@@ -33,6 +34,9 @@ from titan_server.domains.tasks import service as tasks_service
 from titan_server.domains.tasks.models import Task
 
 pytestmark = pytest.mark.anyio
+
+# Requests made after it have not expired: nothing in these tests is that old.
+LONG_AGO = datetime(2000, 1, 1, tzinfo=UTC)
 
 
 def new_user(username: str = "owner") -> User:
@@ -124,7 +128,7 @@ async def test_an_approved_call_runs_and_its_changes_are_in_the_log(
     entry = new_request(user.id)
     await stored(session, user, entry)
 
-    assert await approve(session, user.id, entry.id) is entry
+    assert await approve(session, user.id, entry.id, LONG_AGO) is entry
 
     assert await status_of(session, entry) == EntryStatus.DONE
     assert await tasks(session) == ["Buy milk"]
@@ -144,7 +148,7 @@ async def test_the_input_is_checked_again(session: AsyncSession) -> None:
     entry.input = {"title": ""}
     await stored(session, entry)
 
-    await approve(session, user.id, entry.id)
+    await approve(session, user.id, entry.id, LONG_AGO)
 
     assert await status_of(session, entry) == EntryStatus.FAILED
     assert await tasks(session) == []
@@ -170,7 +174,7 @@ async def test_a_failed_call_is_failed_and_keeps_no_changes(
     entry = new_request(user.id, thread.id, tool="failing")
     await stored(session, entry)
 
-    await approve(session, user.id, entry.id)
+    await approve(session, user.id, entry.id, LONG_AGO)
 
     assert await status_of(session, entry) == EntryStatus.FAILED
     assert await tasks(session) == []
@@ -197,7 +201,7 @@ async def test_an_unknown_tool_fails(session: AsyncSession) -> None:
     entry = new_request(user.id, thread.id, tool="no_such_tool")
     await stored(session, entry)
 
-    await approve(session, user.id, entry.id)
+    await approve(session, user.id, entry.id, LONG_AGO)
 
     assert await status_of(session, entry) == EntryStatus.FAILED
     assert await tasks(session) == []
@@ -212,7 +216,7 @@ async def test_the_thread_gets_approved_done(session: AsyncSession) -> None:
     entry = new_request(user.id, thread.id)
     await stored(session, entry)
 
-    await approve(session, user.id, entry.id)
+    await approve(session, user.id, entry.id, LONG_AGO)
 
     [message] = await messages(session)
     assert (message.thread_id, message.role, message.text, message.model) == (
@@ -241,7 +245,7 @@ async def test_a_request_without_a_thread_runs_and_writes_no_message(
     entry = new_request(user.id)
     await stored(session, user, entry)
 
-    await approve(session, user.id, entry.id)
+    await approve(session, user.id, entry.id, LONG_AGO)
 
     assert await tasks(session) == ["Buy milk"]
     assert await messages(session) == []
@@ -258,7 +262,7 @@ async def test_another_users_request_is_not_found(
     entry_id = entry.id if whose == "another user's" else uuid.uuid4()
 
     with pytest.raises(ApprovalNotFoundError):
-        await approve(session, other.id, entry_id)
+        await approve(session, other.id, entry_id, LONG_AGO)
 
     assert await status_of(session, entry) == EntryStatus.PENDING
     assert await tasks(session) == []
@@ -269,10 +273,10 @@ async def test_a_decided_request_is_not_decided_again(session: AsyncSession) -> 
     user = new_user()
     entry = new_request(user.id)
     await stored(session, user, entry)
-    await approve(session, user.id, entry.id)
+    await approve(session, user.id, entry.id, LONG_AGO)
 
     with pytest.raises(AlreadyDecidedError) as raised:
-        await approve(session, user.id, entry.id)
+        await approve(session, user.id, entry.id, LONG_AGO)
 
     assert raised.value.status == EntryStatus.DONE
     assert await tasks(session) == ["Buy milk"]
@@ -298,6 +302,20 @@ async def engine(database: URL) -> AsyncIterator[AsyncEngine]:
     await engine.dispose()
 
 
+async def test_an_expired_request_never_runs(session: AsyncSession) -> None:
+    """Expiry 2: approving a request past its deadline runs nothing."""
+    user = new_user()
+    entry = new_request(user.id)
+    await stored(session, user, entry)
+
+    with pytest.raises(AlreadyDecidedError, match="expired"):
+        await approve(session, user.id, entry.id, entry.created_at)
+
+    assert await status_of(session, entry) == EntryStatus.EXPIRED
+    assert await tasks(session) == []
+    assert await changes(session, entry) == []
+
+
 async def test_two_approvals_at_once_run_the_call_once(engine: AsyncEngine) -> None:
     """Approvals 3 and decision #121: the second waits for the lock, then is told."""
     user = new_user(f"race-{uuid.uuid4().hex[:8]}")
@@ -309,7 +327,7 @@ async def test_two_approvals_at_once_run_the_call_once(engine: AsyncEngine) -> N
     async def decide() -> EntryStatus:
         # Each Approve in its own transaction, as two requests to the API.
         async with AsyncSession(engine) as session, session.begin():
-            approved = await approve(session, user_id, entry_id)
+            approved = await approve(session, user_id, entry_id, LONG_AGO)
             return approved.status
 
     results = await asyncio.gather(decide(), decide(), return_exceptions=True)

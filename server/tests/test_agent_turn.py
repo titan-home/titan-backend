@@ -47,6 +47,9 @@ from titan_server.domains.tasks.models import Task
 
 pytestmark = pytest.mark.anyio
 
+# Requests made after it have not expired: nothing in these tests is that old.
+LONG_AGO = datetime(2000, 1, 1, tzinfo=UTC)
+
 NOW = datetime(2026, 10, 7, 9, 30, tzinfo=UTC)
 MODEL = "claude-opus-5-5"
 USAGE = {
@@ -111,7 +114,9 @@ async def new_thread(session: AsyncSession, username: str = "owner") -> Thread:
 async def turn(
     session: AsyncSession, thread: Thread, text: str, claude: Claude
 ) -> list[TurnEvent]:
-    events = run_turn(session, thread.user_id, thread.id, text, NOW, ask=claude)
+    events = run_turn(
+        session, thread.user_id, thread.id, text, NOW, LONG_AGO, ask=claude
+    )
     return [event async for event in events]
 
 
@@ -255,6 +260,49 @@ async def test_a_call_that_did_not_run_is_retold_as_it_stood(
     assert f"[create_task: Creating a task: Buy milk, {outcome}]\n" in prompt
 
 
+async def test_a_new_turn_first_expires_the_threads_overdue_requests(
+    session: AsyncSession,
+) -> None:
+    """Expiry 4 (decision #125): Claude reads that the call will not run."""
+    thread = await new_thread(session)
+    await set_override(
+        session, thread.user_id, Domain.TASKS, ActionClass.WRITE_INTERNAL, Mode.CONFIRM
+    )
+    await turn(
+        session,
+        thread,
+        "add a task to buy milk",
+        Claude(calls=[("create_task", {"title": "Buy milk"})], reply="It waits."),
+    )
+    [entry] = await session.scalars(select(AuditEntry))
+    claude = Claude(reply="It expired.")
+
+    # A deadline at the request's creation time is already past.
+    events = run_turn(
+        session,
+        thread.user_id,
+        thread.id,
+        "is it there?",
+        NOW,
+        entry.created_at,
+        claude,
+    )
+    [event async for event in events]
+
+    assert entry.status == EntryStatus.EXPIRED
+    [(_, prompt, _)] = claude.asked
+    assert prompt == (
+        "<earlier_messages>\n"
+        '<message role="user">\nadd a task to buy milk\n</message>\n'
+        '<message role="assistant">\nIt waits.\n'
+        "[create_task: Creating a task: Buy milk, waiting for approval]\n</message>\n"
+        '<message role="assistant">\nExpired: Creating a task: Buy milk.\n'
+        "[create_task: Creating a task: Buy milk, expired]\n</message>\n"
+        "</earlier_messages>\n\n"
+        "is it there?"
+    )
+
+
 async def test_a_call_stored_without_a_status_is_retold_from_ok(
     session: AsyncSession,
 ) -> None:
@@ -394,7 +442,9 @@ async def test_another_users_thread_is_not_found_and_claude_is_not_asked(
     claude = Claude()
 
     with pytest.raises(chat.ThreadNotFoundError):
-        events = run_turn(session, other.id, thread.id, "hello", NOW, ask=claude)
+        events = run_turn(
+            session, other.id, thread.id, "hello", NOW, LONG_AGO, ask=claude
+        )
         [event async for event in events]
 
     assert claude.asked == []
@@ -416,7 +466,7 @@ async def test_a_turn_claude_did_not_finish_stores_no_reply(
         [
             event
             async for event in run_turn(
-                session, thread.user_id, thread.id, "hi", NOW, failing
+                session, thread.user_id, thread.id, "hi", NOW, LONG_AGO, failing
             )
         ]
 
@@ -430,7 +480,9 @@ async def test_a_missing_thread_is_not_found(session: AsyncSession) -> None:
     thread = await new_thread(session)
 
     with pytest.raises(chat.ThreadNotFoundError):
-        events = run_turn(session, thread.user_id, uuid.uuid4(), "hi", NOW, Claude())
+        events = run_turn(
+            session, thread.user_id, uuid.uuid4(), "hi", NOW, LONG_AGO, Claude()
+        )
         [event async for event in events]
 
 
@@ -453,7 +505,7 @@ async def test_a_tool_call_comes_before_the_text_written_after_it(
     events = [
         event
         async for event in run_turn(
-            session, thread.user_id, thread.id, "hi", NOW, claude
+            session, thread.user_id, thread.id, "hi", NOW, LONG_AGO, claude
         )
     ]
 
@@ -483,7 +535,7 @@ async def test_a_tool_call_is_reported_only_once_it_has_finished(
     reported = [
         dict(event.call)
         async for event in run_turn(
-            session, thread.user_id, thread.id, "hi", NOW, claude
+            session, thread.user_id, thread.id, "hi", NOW, LONG_AGO, claude
         )
         if isinstance(event, ToolCalled)
     ]
