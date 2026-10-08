@@ -10,6 +10,7 @@ import httpx
 
 from titan_cli.account import login, whoami
 from titan_cli.approvals import approvals_list, approve, reject
+from titan_cli.audit import undo
 from titan_cli.chat import chat
 from titan_cli.client.errors import UnexpectedStatus
 from titan_cli.client.models import ActionClass, Domain, Mode
@@ -84,6 +85,11 @@ def main(argv: list[str] | None = None) -> None:
         # The full id only, as decision #136 has for titan undo; titan chat
         # and titan approvals print it.
         decide_parser.add_argument("id", type=UUID, help="the request's full id")
+    undo_parser = commands.add_parser(
+        "undo", help="undo an action of the agent: what it changed is put back"
+    )
+    # The full id only (decision #136).
+    undo_parser.add_argument("id", type=UUID, help="the action's full id")
     arguments = parser.parse_args(argv)
 
     try:
@@ -103,6 +109,8 @@ def main(argv: list[str] | None = None) -> None:
             approve(arguments.id)
         elif arguments.command == "reject":
             reject(arguments.id)
+        elif arguments.command == "undo":
+            undo(arguments.id)
         else:
             whoami()
     except CliError as error:

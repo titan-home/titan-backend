@@ -23,7 +23,9 @@ the database. Stage 3, the policy and the audit log, is under way: every
 tool call is in the audit log with what it changed and runs in the mode of
 its action class, `titan policy` sets a user's own mode per domain, and
 `titan approvals`, `titan approve` and `titan reject` decide the calls that
-wait for approval, which expire when nobody decides them; undo comes next. See the
+wait for approval, which expire when nobody decides them; `titan undo`
+takes an action back from its audit entry, and the list of the log comes
+next. See the
 [build plan](shared/docs/roadmap/plan.md).
 
 ## Layout
