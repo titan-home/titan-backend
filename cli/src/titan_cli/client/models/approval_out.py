@@ -33,6 +33,8 @@ class ApprovalOut:
             A user can change the mode of one class in one domain (decision #10).
         status (EntryStatus): Where a call stands in its life (decision #111).
         created_at (datetime.datetime):
+        expires_at (datetime.datetime): When a pending request expires: its creation time plus the node's setting in
+            effect now (decision #127).
     """
 
     id: UUID
@@ -42,6 +44,7 @@ class ApprovalOut:
     action_class: ActionClass
     status: EntryStatus
     created_at: datetime.datetime
+    expires_at: datetime.datetime
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -59,6 +62,8 @@ class ApprovalOut:
 
         created_at = self.created_at.isoformat()
 
+        expires_at = self.expires_at.isoformat()
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -70,6 +75,7 @@ class ApprovalOut:
                 "action_class": action_class,
                 "status": status,
                 "created_at": created_at,
+                "expires_at": expires_at,
             }
         )
 
@@ -92,6 +98,8 @@ class ApprovalOut:
 
         created_at = datetime.datetime.fromisoformat(d.pop("created_at"))
 
+        expires_at = datetime.datetime.fromisoformat(d.pop("expires_at"))
+
         approval_out = cls(
             id=id,
             tool=tool,
@@ -100,6 +108,7 @@ class ApprovalOut:
             action_class=action_class,
             status=status,
             created_at=created_at,
+            expires_at=expires_at,
         )
 
         approval_out.additional_properties = d
