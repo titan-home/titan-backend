@@ -106,6 +106,19 @@ async def test_a_call_that_ran_is_recorded_as_done(context: ToolContext) -> None
     assert entry.domain == Domain.TASKS
 
 
+@pytest.mark.parametrize("undoable", [False, True])
+async def test_an_entry_keeps_whether_its_tool_can_be_undone(
+    context: ToolContext, undoable: bool
+) -> None:
+    """Decision #130: kept as the tool declared it when called."""
+    tool = dataclasses.replace(ECHO, undoable=undoable)
+
+    await sdk_tool(tool, context).handler({"word": "milk"})
+
+    [entry] = await entries(context)
+    assert entry.undoable is undoable
+
+
 async def test_every_call_is_written_to_the_audit_log(context: ToolContext) -> None:
     """Autonomy spec, audit log 1: when, which tool, its class, input, outcome."""
     await sdk_tool(ECHO, context).handler({"word": "milk"})
@@ -207,6 +220,7 @@ def new_entry(context: ToolContext) -> AuditEntry:
         action_class=ActionClass.READ,
         domain=Domain.TASKS,
         input={"word": "milk"},
+        undoable=False,
         status=EntryStatus.FAILED,
     )
     context.session.add(entry)

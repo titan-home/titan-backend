@@ -62,6 +62,7 @@ def new_request(
         action_class=ActionClass.WRITE_INTERNAL,
         domain=Domain.TASKS,
         input={"title": title},
+        undoable=True,
         status=EntryStatus.PENDING,
     )
 

@@ -121,6 +121,7 @@ def sdk_tool(tool: Tool[Any], context: ToolContext) -> SdkMcpTool[Any]:
             action_class=tool.action_class,
             domain=tool.domain,
             input=tool_input.model_dump(mode="json"),
+            undoable=tool.undoable,
             status=EntryStatus.FAILED,
         )
         context.session.add(audit_entry)

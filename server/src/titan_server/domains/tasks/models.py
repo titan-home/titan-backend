@@ -1,4 +1,4 @@
-"""The tasks table; stage 2 keeps only what creating a task needs."""
+"""The tasks table; it keeps only what creating a task and its undo need."""
 
 import enum
 import uuid
@@ -40,4 +40,11 @@ class Task(Audited, Base):
     )
     created_at: Mapped[datetime] = active_history_mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+    # Set when the task goes to the trash, which every read leaves out
+    # (decision #128).
+    # NOTE: items in the trash are kept for good until the worker of stage 6
+    # purges them after 30 days (decision #129).
+    deleted_at: Mapped[datetime | None] = active_history_mapped_column(
+        DateTime(timezone=True)
     )
