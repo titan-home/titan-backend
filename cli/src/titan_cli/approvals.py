@@ -30,7 +30,7 @@ class NewerApproval:
     domain: str
     action_class: str
     status: str
-    created_at: datetime
+    expires_at: datetime
 
 
 Approval = ApprovalOut | NewerApproval
@@ -49,7 +49,7 @@ def _approval(fields: Any) -> Approval:
                 str(fields["domain"]),
                 str(fields["action_class"]),
                 str(fields["status"]),
-                datetime.fromisoformat(fields["created_at"]),
+                datetime.fromisoformat(fields["expires_at"]),
             )
     except (KeyError, TypeError, ValueError):
         raise UnreadableAnswerError from None
@@ -119,8 +119,8 @@ def approvals_list() -> None:
     width = max(len(str(request.summary)) for request in requests)
     for request in requests:
         kind = f"{request.domain}/{request.action_class}"
-        made = request.created_at.isoformat(" ", "minutes")
-        print(f"{request.id}  {request.summary!s:<{width}}  {kind}  {made}")
+        expires = request.expires_at.isoformat(" ", "minutes")
+        print(f"{request.id}  {request.summary!s:<{width}}  {kind}  expires {expires}")
 
 
 def _decide(approval_id: UUID, decision: str) -> Approval:

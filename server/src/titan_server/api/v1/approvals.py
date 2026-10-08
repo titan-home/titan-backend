@@ -63,6 +63,12 @@ class ApprovalOut(BaseModel):
     action_class: ActionClass
     status: EntryStatus
     created_at: datetime
+    expires_at: datetime = Field(
+        description=(
+            "When a pending request expires: its creation time plus the"
+            " node's setting in effect now (decision #127)."
+        )
+    )
 
 
 class ApprovalPage(BaseModel):
@@ -84,6 +90,7 @@ def approval_out(entry: AuditEntry) -> ApprovalOut:
         action_class=entry.action_class,
         status=entry.status,
         created_at=entry.created_at,
+        expires_at=entry.created_at + approval_lifetime(),
     )
 
 

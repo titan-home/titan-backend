@@ -136,7 +136,10 @@ async def test_a_request_shows_its_summary_domain_and_class(
         "action_class": "write-internal",
         "status": "pending",
         "created_at": item["created_at"],
+        "expires_at": item["expires_at"],
     }
+    made = datetime.fromisoformat(item["created_at"])
+    assert datetime.fromisoformat(item["expires_at"]) == made + timedelta(hours=24)
     assert response.json()["next"] is None
 
 
@@ -346,6 +349,11 @@ async def test_the_lifetime_is_the_nodes_setting(
     response = await client.get(APPROVALS)
 
     assert response.json()["items"] == []
+    # A request made now expires an hour from now.
+    await new_request(session, owner, "Buy bread")
+    [item] = (await client.get(APPROVALS)).json()["items"]
+    made = datetime.fromisoformat(item["created_at"])
+    assert datetime.fromisoformat(item["expires_at"]) == made + timedelta(hours=1)
 
 
 @pytest.mark.parametrize("decision", ["approve", "reject"])

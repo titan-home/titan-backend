@@ -70,6 +70,7 @@ def approval(
         "action_class": "destructive",
         "status": status,
         "created_at": "2026-10-07T09:15:42.123456+00:00",
+        "expires_at": "2026-10-08T09:15:42.123456+00:00",
     }
 
 
@@ -103,9 +104,9 @@ def test_approvals_lists_every_page_oldest_first(
     assert requests[0].headers["Authorization"] == f"Bearer {TOKEN}"
     assert capsys.readouterr().out == (
         f"{FIRST_ID}  Delete the task Buy milk"
-        "  tasks/destructive  2026-10-07 09:15+00:00\n"
+        "  tasks/destructive  expires 2026-10-08 09:15+00:00\n"
         f"{SECOND_ID}  Delete the note Plans   "
-        "  tasks/destructive  2026-10-07 09:15+00:00\n"
+        "  tasks/destructive  expires 2026-10-08 09:15+00:00\n"
     )
 
 
@@ -138,7 +139,7 @@ def test_approvals_shows_a_domain_this_cli_does_not_know(
 
     assert capsys.readouterr().out == (
         f"{FIRST_ID}  Delete the task Buy milk"
-        "  garden/destructive  2026-10-07 09:15+00:00\n"
+        "  garden/destructive  expires 2026-10-08 09:15+00:00\n"
     )
 
 
@@ -346,8 +347,8 @@ def test_a_summary_that_is_not_text_is_shown_as_text(
     main(["approvals"])
 
     assert capsys.readouterr().out == (
-        f"{FIRST_ID}  None  tasks/destructive  2026-10-07 09:15+00:00\n"
-        f"{SECOND_ID}  42    x/destructive  2026-10-07 09:15+00:00\n"
+        f"{FIRST_ID}  None  tasks/destructive  expires 2026-10-08 09:15+00:00\n"
+        f"{SECOND_ID}  42    x/destructive  expires 2026-10-08 09:15+00:00\n"
     )
 
 
