@@ -3,6 +3,7 @@
 import dataclasses
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -59,7 +60,9 @@ async def client(
     _, token = await sign_in(session, "owner", PASSWORD, "laptop", None)
 
     async def test_session() -> AsyncIterator[AsyncSession]:
-        yield session
+        # Kept if the route returns, rolled back if it raises, as get_session.
+        async with session.begin_nested():
+            yield session
 
     app = create_app()
     app.dependency_overrides[get_session] = test_session
@@ -79,8 +82,12 @@ async def new_request(
     tool: str = "create_task",
     status: EntryStatus = EntryStatus.PENDING,
     thread_id: uuid.UUID | None = None,
+    age: timedelta | None = None,
 ) -> AuditEntry:
-    """A stored create_task call that waits for approval, as the agent leaves it."""
+    """A stored create_task call that waits for approval, as the agent leaves it.
+
+    age makes it that much older than now; otherwise the database dates it.
+    """
     entry = AuditEntry(
         id=uuid.uuid4(),
         user_id=user.id,
@@ -93,6 +100,8 @@ async def new_request(
         input={"title": title},
         status=status,
     )
+    if age is not None:
+        entry.created_at = datetime.now(UTC) - age
     session.add(entry)
     # One flush per request: each gets its own created_at, so the order is known.
     await session.flush()
@@ -310,3 +319,53 @@ async def test_a_decided_request_is_not_decided_again(
     assert response.headers["content-type"] == "application/problem+json"
     assert response.json()["detail"] == f"This request is already decided: {status}."
     assert await titles(session) == tasks
+
+
+async def test_a_request_past_its_deadline_is_not_listed(
+    client: httpx.AsyncClient, session: AsyncSession, owner: User
+) -> None:
+    """Expiry 1: a request lives 24 hours by default (decision #127)."""
+    await new_request(session, owner, "Buy milk", age=timedelta(hours=25))
+    fresh = await new_request(session, owner, "Buy bread", age=timedelta(hours=23))
+
+    response = await client.get(APPROVALS)
+
+    assert [item["id"] for item in response.json()["items"]] == [str(fresh.id)]
+
+
+async def test_the_lifetime_is_the_nodes_setting(
+    client: httpx.AsyncClient,
+    session: AsyncSession,
+    owner: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Expiry 1: the node setting changes the lifetime of requests already waiting."""
+    await new_request(session, owner, age=timedelta(hours=2))
+    monkeypatch.setenv("TITAN_DEFAULT_APPROVAL_EXPIRY_HOURS", "1")
+
+    response = await client.get(APPROVALS)
+
+    assert response.json()["items"] == []
+
+
+@pytest.mark.parametrize("decision", ["approve", "reject"])
+async def test_deciding_an_expired_request_answers_409_and_keeps_the_mark(
+    client: httpx.AsyncClient, session: AsyncSession, owner: User, decision: str
+) -> None:
+    """Expiry 2 to 4: it never runs, says it has expired, and its thread is told."""
+    thread = await create_thread(session, owner.id)
+    entry = await new_request(
+        session, owner, thread_id=thread.id, age=timedelta(hours=25)
+    )
+
+    response = await client.post(f"{APPROVALS}/{entry.id}/{decision}")
+
+    assert response.status_code == 409
+    assert response.headers["content-type"] == "application/problem+json"
+    assert response.json()["detail"] == "This request has expired."
+    # Kept although the answer is an error (decision #125).
+    await session.refresh(entry)
+    assert entry.status == EntryStatus.EXPIRED
+    texts = await session.scalars(select(Message.text))
+    assert list(texts) == ["Expired: Creating a task: Buy milk."]
+    assert await titles(session) == []

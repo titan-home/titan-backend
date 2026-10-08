@@ -6,6 +6,7 @@ Rejecting and listing need no tools and live in the audit domain
 
 import logging
 import uuid
+from datetime import datetime
 
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 async def approve(
-    session: AsyncSession, user_id: uuid.UUID, entry_id: uuid.UUID
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    entry_id: uuid.UUID,
+    expired_before: datetime,
 ) -> AuditEntry:
     """Run the user's pending request exactly as stored, without the agent.
 
@@ -29,10 +33,11 @@ async def approve(
     through run_call, so its changes are in the log and a failure keeps none
     of them (decisions #120, #122). The entry ends done or failed (decision
     #123), and its thread, if any, is told how it went. Raises
-    ApprovalNotFoundError or AlreadyDecidedError; a failed call does not
-    raise. The caller commits the session, which ends the lock (decision #121).
+    ApprovalNotFoundError or AlreadyDecidedError, as lock_pending; a failed
+    call does not raise. The caller commits the session, which ends the lock
+    (decision #121).
     """
-    entry = await lock_pending(session, user_id, entry_id)
+    entry = await lock_pending(session, user_id, entry_id, expired_before)
     # Read before the run: a failed run's rollback may expire the entry.
     summary, thread_id = entry.summary, entry.thread_id
     record = await _run(session, user_id, entry)

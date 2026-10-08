@@ -23,7 +23,7 @@ the database. Stage 3, the policy and the audit log, is under way: every
 tool call is in the audit log with what it changed and runs in the mode of
 its action class, `titan policy` sets a user's own mode per domain, and
 `titan approvals`, `titan approve` and `titan reject` decide the calls that
-wait for approval; undo comes next. See the
+wait for approval, which expire when nobody decides them; undo comes next. See the
 [build plan](shared/docs/roadmap/plan.md).
 
 ## Layout
@@ -128,6 +128,18 @@ Lists, such as the approval requests, are paged by a cursor
 | Variable | What it is |
 |---|---|
 | `TITAN_DEFAULT_MAX_PAGE_SIZE` | The most items one page of a list holds; a larger `limit` is capped to it; 100 unless set |
+
+### Approval requests
+
+A call that waits for approval expires when nobody decides it in time, and
+then never runs
+([decision #125](shared/docs/decisions/README.md#register)). It is marked
+expired, and its thread told, when it is next approved or rejected or when
+its thread gets a new turn; until then the list leaves it out. The api reads:
+
+| Variable | What it is |
+|---|---|
+| `TITAN_DEFAULT_APPROVAL_EXPIRY_HOURS` | How long a request waits, counted from when it was made, so a change applies to requests already waiting; 24 unless set |
 
 ## Getting the code
 
