@@ -3,6 +3,7 @@
 from titan_cli.client.models.action_class import ActionClass
 from titan_cli.client.models.approval_out import ApprovalOut
 from titan_cli.client.models.approval_page import ApprovalPage
+from titan_cli.client.models.audit_entry_out import AuditEntryOut
 from titan_cli.client.models.chat_done_event import ChatDoneEvent
 from titan_cli.client.models.chat_error_event import ChatErrorEvent
 from titan_cli.client.models.chat_text_event import ChatTextEvent
@@ -26,6 +27,7 @@ __all__ = (
     "ActionClass",
     "ApprovalOut",
     "ApprovalPage",
+    "AuditEntryOut",
     "ChatDoneEvent",
     "ChatErrorEvent",
     "ChatTextEvent",

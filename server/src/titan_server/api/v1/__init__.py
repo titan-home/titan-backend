@@ -6,10 +6,11 @@ here and it is served under /api/v1.
 
 from fastapi import APIRouter
 
-from titan_server.api.v1 import approvals, chat, devices, me, policy
+from titan_server.api.v1 import approvals, audit, chat, devices, me, policy
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(approvals.router)
+router.include_router(audit.router)
 router.include_router(chat.router)
 router.include_router(devices.router)
 router.include_router(me.router)
