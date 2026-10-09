@@ -145,6 +145,30 @@ its thread gets a new turn; until then the list leaves it out. The api reads:
 |---|---|
 | `TITAN_DEFAULT_APPROVAL_EXPIRY_HOURS` | How long a request waits, counted from when it was made, so a change applies to requests already waiting; 24 unless set |
 
+## Images
+
+CI publishes two images, one per process, when a version tag `vX.Y.Z`, or a
+pre-release such as `vX.Y.Z-rc.1`, is pushed; the image tag drops the `v`:
+
+| Image | Dockerfile target | Runs |
+|---|---|---|
+| `ghcr.io/titan-home/titan-api` | `api` | the HTTP API and the agent |
+| `ghcr.io/titan-home/titan-admin` | `admin` | `titan-admin`: the migrations, creating the owner |
+
+Each is built for `linux/amd64`, with an attestation that it was built from
+the tagged commit by this repository's workflow
+([decisions #143–#147](shared/docs/decisions/README.md#register)); a pull
+request only builds them. Nodes pull them by digest and never build them. To
+check an image's origin, with the digest from the workflow's summary:
+
+```sh
+gh attestation verify oci://ghcr.io/titan-home/<image>@sha256:<digest> \
+  --repo titan-home/titan-backend \
+  --signer-workflow titan-home/titan-backend/.github/workflows/images.yml \
+  --source-ref refs/tags/<tag> --source-digest <commit> \
+  --deny-self-hosted-runners
+```
+
 ## Getting the code
 
 ```sh
