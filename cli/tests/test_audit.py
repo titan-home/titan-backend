@@ -1,4 +1,4 @@
-"""Tests for titan undo (decisions #135, #136)."""
+"""Tests for titan undo and titan log (decisions #135, #136)."""
 
 import functools
 import json
@@ -147,3 +147,122 @@ def test_an_id_that_is_not_a_uuid_is_not_sent(monkeypatch: pytest.MonkeyPatch) -
 
     assert exit_info.value.code == 2
     assert requests == []
+
+
+# titan log
+
+
+def entry(
+    entry_id: uuid.UUID = ENTRY_ID,
+    summary: object = "Creating a task: Buy milk",
+    status: str = "done",
+    domain: str = "tasks",
+    mode: str | None = "auto-undo",
+) -> dict[str, object]:
+    """A call's entry as the node sends it."""
+    return {
+        "id": str(entry_id),
+        "tool": "create_task",
+        "summary": summary,
+        "domain": domain,
+        "action_class": "write-internal",
+        "mode": mode,
+        "status": status,
+        "undoable": True,
+        "undoes_entry_id": None,
+        "created_at": "2026-10-08T12:00:00.123456+00:00",
+    }
+
+
+def test_log_prints_one_page_newest_first_and_where_to_go_on(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Decision #136: what the agent did and what was undone, one line each."""
+    undo = undo_entry()
+    serve(
+        monkeypatch,
+        lambda request: httpx.Response(
+            200, json={"items": [undo, entry()], "next": "c1"}
+        ),
+    )
+
+    main(["log"])
+
+    assert capsys.readouterr().out == (
+        f"{undo['id']}  2026-10-08 12:00+00:00  Undo: Creating a task: Buy milk"
+        "  tasks/write-internal  -  done\n"
+        f"{ENTRY_ID}  2026-10-08 12:00+00:00  Creating a task: Buy milk"
+        "        tasks/write-internal  auto-undo  done\n"
+        "More: titan log --after c1\n"
+    )
+
+
+def test_log_sends_one_request_with_the_cursor_it_was_given(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests = serve(
+        monkeypatch,
+        lambda request: httpx.Response(200, json={"items": [entry()], "next": None}),
+    )
+
+    main(["log"])
+    main(["log", "--after", "c1"])
+
+    assert [(request.method, str(request.url)) for request in requests] == [
+        ("GET", ENTRIES),
+        ("GET", f"{ENTRIES}?after=c1"),
+    ]
+    assert requests[0].headers["Authorization"] == f"Bearer {TOKEN}"
+
+
+def test_log_says_when_it_is_empty(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    serve(
+        monkeypatch,
+        lambda request: httpx.Response(200, json={"items": [], "next": None}),
+    )
+
+    main(["log"])
+
+    assert capsys.readouterr().out == "Your audit log is empty.\n"
+
+
+def test_log_shows_values_this_cli_does_not_know(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A newer node may add values (development rules, section 9)."""
+    serve(
+        monkeypatch,
+        lambda request: httpx.Response(
+            200,
+            json={
+                "items": [entry(domain="garden", status="queued", mode="whisper")],
+                "next": None,
+            },
+        ),
+    )
+
+    main(["log"])
+
+    assert capsys.readouterr().out == (
+        f"{ENTRY_ID}  2026-10-08 12:00+00:00  Creating a task: Buy milk"
+        "  garden/write-internal  whisper  queued\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        httpx.Response(200, text="not json"),
+        httpx.Response(200, json={"next": None}),
+        httpx.Response(200, json={"items": [{"id": "no summary"}], "next": None}),
+        httpx.Response(200, json={"items": [entry()]}),
+    ],
+)
+def test_log_refuses_an_answer_it_cannot_read(
+    monkeypatch: pytest.MonkeyPatch, answer: httpx.Response
+) -> None:
+    serve(monkeypatch, lambda request: answer)
+
+    assert exit_message(["log"]) == "titan: the node sent an answer titan cannot read"

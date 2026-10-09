@@ -10,7 +10,7 @@ import httpx
 
 from titan_cli.account import login, whoami
 from titan_cli.approvals import approvals_list, approve, reject
-from titan_cli.audit import undo
+from titan_cli.audit import log, undo
 from titan_cli.chat import chat
 from titan_cli.client.errors import UnexpectedStatus
 from titan_cli.client.models import ActionClass, Domain, Mode
@@ -90,6 +90,15 @@ def main(argv: list[str] | None = None) -> None:
     )
     # The full id only (decision #136).
     undo_parser.add_argument("id", type=UUID, help="the action's full id")
+    log_parser = commands.add_parser(
+        "log",
+        help=(
+            "list your audit log, newest first: what the agent did and what was undone"
+        ),
+    )
+    log_parser.add_argument(
+        "--after", metavar="CURSOR", help="continue after the cursor the last page gave"
+    )
     arguments = parser.parse_args(argv)
 
     try:
@@ -111,6 +120,8 @@ def main(argv: list[str] | None = None) -> None:
             reject(arguments.id)
         elif arguments.command == "undo":
             undo(arguments.id)
+        elif arguments.command == "log":
+            log(arguments.after)
         else:
             whoami()
     except CliError as error:
