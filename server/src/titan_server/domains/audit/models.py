@@ -86,6 +86,8 @@ class AuditEntry(Base):
             "id",
             postgresql_where=text("status = 'pending'"),
         ),
+        # The list of the log, newest first (decision #136).
+        Index("ix_audit_entries_user_created", "user_id", "created_at", "id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

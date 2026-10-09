@@ -1,14 +1,21 @@
-"""The audit log: undoing an action from its entry (decision #135)."""
+"""The audit log: the list of it and undoing from an entry (decisions #136, #135)."""
 
 import uuid
 from datetime import UTC, datetime
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field
 
 from titan_server.api.dependencies import CurrentDevice, Session
 from titan_server.api.problems import problems
-from titan_server.domains.audit import undo
+from titan_server.api.v1.approvals import (
+    DEFAULT_MAX_PAGE_SIZE,
+    expired_before,
+    max_page_size,
+)
+from titan_server.domains.audit import log, undo
 from titan_server.domains.audit.models import (
     ActionClass,
     AuditEntry,
@@ -39,6 +46,15 @@ class AuditEntryOut(BaseModel):
     created_at: datetime
 
 
+class AuditEntryPage(BaseModel):
+    """A page of the user's audit log, newest first (decision #124)."""
+
+    items: list[AuditEntryOut]
+    next: str | None = Field(
+        description="Send it back as `after` for the next page; null on the last."
+    )
+
+
 def audit_entry_out(entry: AuditEntry) -> AuditEntryOut:
     """The entry as the API shows it; entry's attributes must be loaded."""
     return AuditEntryOut(
@@ -56,6 +72,55 @@ def audit_entry_out(entry: AuditEntry) -> AuditEntryOut:
 
 
 router = APIRouter(prefix="/audit")
+
+
+@router.get("/entries", responses=problems(401, 422))
+async def list_entries(
+    device: CurrentDevice,
+    session: Session,
+    # The maximum is the node's setting, so the contract names only the
+    # default (decision #83).
+    limit: Annotated[
+        int | None,
+        Query(
+            ge=1,
+            description=(
+                "At most the node's maximum page size, larger is capped;"
+                f" {DEFAULT_MAX_PAGE_SIZE} by default. Missing means the maximum."
+            ),
+        ),
+    ] = None,
+    after: Annotated[
+        str | None, Query(description="The `next` of the page before.")
+    ] = None,
+) -> AuditEntryPage:
+    """The signed-in user's audit log, newest first: every call and every undo."""
+    page_size = min(limit or max_page_size(), max_page_size())
+    try:
+        entries, cursor = await log.list_entries(
+            session, device.user_id, page_size, after
+        )
+    except ValueError:
+        # Answered like any invalid input, naming the field (api/problems.py).
+        raise RequestValidationError(
+            [
+                {
+                    "loc": ("query", "after"),
+                    "msg": "The cursor is not valid.",
+                    "type": "value_error",
+                }
+            ]
+        ) from None
+    # A request nobody touched still says pending past its deadline; every
+    # reader shows it expired, without writing on a GET (decision #125).
+    deadline = expired_before(datetime.now(UTC))
+    items = [
+        audit_entry_out(entry).model_copy(update={"status": EntryStatus.EXPIRED})
+        if entry.status == EntryStatus.PENDING and entry.created_at <= deadline
+        else audit_entry_out(entry)
+        for entry in entries
+    ]
+    return AuditEntryPage(items=items, next=cursor)
 
 
 @router.post("/entries/{entry_id}/undo", responses=problems(401, 404, 409, 422))
