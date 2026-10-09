@@ -35,4 +35,9 @@ USER titan
 EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
-CMD ["uvicorn", "titan_api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+# The app itself decides whom to believe in X-Forwarded-For
+# (TITAN_TRUSTED_PROXIES), so uvicorn's own handling is off. uvicorn's access
+# log is off too: it prints query strings, which may hold search text
+# (development rules, 11); nginx on the node logs every request without them.
+CMD ["uvicorn", "titan_api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", \
+     "--no-proxy-headers", "--no-access-log"]

@@ -145,6 +145,22 @@ its thread gets a new turn; until then the list leaves it out. The api reads:
 |---|---|
 | `TITAN_DEFAULT_APPROVAL_EXPIRY_HOURS` | How long a request waits, counted from when it was made, so a change applies to requests already waiting; 24 unless set |
 
+### Password guessing
+
+After 10 failed sign-ins within 15 minutes from one client address for one
+username, that pair is refused with `429` and `Retry-After` for 15 minutes
+from the 10th failure, then starts with a clean count; other addresses and
+other accounts are not affected ([decision #27](shared/docs/decisions/README.md#register)). The
+count lives in the api's memory, so it starts over when the api restarts.
+The client address is the connection's, or `X-Forwarded-For` when the
+connection comes from one of our own proxies. The api reads:
+
+| Variable | What it is |
+|---|---|
+| `TITAN_TRUSTED_PROXIES` | Our own proxies, such as the node's nginx: addresses or networks, comma-separated, for example the node's nginx at `172.31.250.2`; trust single addresses rather than whole networks, so no other container can claim a client's address; empty or unset trusts none. An entry that is not an address or network stops the api from starting |
+
+The development stack sets none: it has no proxy in front of the api.
+
 ## Images
 
 CI publishes two images, one per process, when a version tag `vX.Y.Z`, or a

@@ -1,6 +1,7 @@
 """titan login and titan whoami: signing this device in and asking who it is."""
 
 import json
+import math
 import os
 from dataclasses import asdict, dataclass
 from getpass import getpass
@@ -78,6 +79,16 @@ def _save_login(saved: Login) -> None:
         json.dump(asdict(saved), f)
 
 
+def _wait(retry_after: str) -> str:
+    """Retry-After, in whole seconds, as minutes rounded up: "14 minutes"."""
+    try:
+        seconds = int(retry_after)
+    except ValueError:
+        return "a few minutes"
+    minutes = max(1, math.ceil(seconds / 60))
+    return f"{minutes} minute" if minutes == 1 else f"{minutes} minutes"
+
+
 def login(url: str, name: str, dev: bool) -> None:
     """Sign this device in to the node at url and keep its token.
 
@@ -94,14 +105,20 @@ def login(url: str, name: str, dev: bool) -> None:
         old_token = saved.token
 
     username, password = read_credentials()
-    result = add_device.sync(
+    response = add_device.sync_detailed(
         client=api_client(url, old_token),
         body=DeviceRegistrationIn(username=username, password=password, name=name),
     )
+    result = response.parsed
 
     if not isinstance(result, DeviceRegistrationOut):
         if isinstance(result, Problem) and result.status == 401:
             raise CliError("wrong username or password")
+        if isinstance(result, Problem) and result.status == 429:
+            raise CliError(
+                "too many failed sign-ins from this address; try again in "
+                + _wait(response.headers.get("Retry-After", ""))
+            )
         reason = result.title if isinstance(result, Problem) else "no answer"
         raise CliError(f"the node refused to sign in: {reason}")
 
