@@ -16,6 +16,7 @@ from titan_cli.client.models import (
     ChatToolCallEvent,
     ChatToolCallEventStatus,
     MessageIn,
+    Mode,
     Problem,
     ThreadOut,
 )
@@ -139,6 +140,9 @@ def _parse_event(data: str) -> ChatEvent | None:
 def _status(call: ChatToolCallEvent) -> str:
     """How a tool call's line ends, by its status."""
     match call.status:
+        # The Undo of decision #37, in the terminal (decision #139).
+        case ChatToolCallEventStatus.DONE if call.mode == Mode.AUTO_UNDO:
+            return f"✓ undo: titan undo {call.entry_id}"
         case ChatToolCallEventStatus.DONE:
             return "✓"
         case ChatToolCallEventStatus.FAILED:
@@ -156,7 +160,8 @@ def print_reply(events: Iterable[ChatEvent]) -> None:
 
     Text is printed as it comes, without waiting for a whole line. Each tool
     call gets a line of its own, `· name: summary` and its status: `✓` done,
-    `✗` failed, `⏳ waiting for approval: titan approve <entry id>` pending,
+    `✓ undo: titan undo <entry id>` done in auto-undo (decision #139), `✗`
+    failed, `⏳ waiting for approval: titan approve <entry id>` pending,
     `⊘ not allowed` denied (decision #119); a status this CLI does not know
     is printed as the node sent it. `done` ends the reply with a newline.
     `error` ends it with CliError and the event's title. A stream that ends

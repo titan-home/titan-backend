@@ -138,6 +138,7 @@ async def test_add_a_task_to_buy_milk(session: AsyncSession) -> None:
         "entry_id": str(entry.id),
         "domain": "tasks",
         "action_class": "write-internal",
+        "mode": "auto-undo",
     }
     assert events[:-1] == [ToolCalled(call), TextDelta("Added"), TextDelta("it.")]
     assert isinstance(events[-1], ReplyStored)
@@ -394,6 +395,7 @@ async def test_a_call_in_confirm_waits_for_approval(session: AsyncSession) -> No
         "entry_id": str(entry.id),
         "domain": "tasks",
         "action_class": "write-internal",
+        "mode": "confirm",
     }
     assert events[0] == ToolCalled(call)
     [_, reply] = await chat.history(session, thread)
@@ -550,5 +552,6 @@ async def test_a_tool_call_is_reported_only_once_it_has_finished(
             "entry_id": str(entry.id),
             "domain": "tasks",
             "action_class": "write-internal",
+            "mode": "auto-undo",
         }
     ]

@@ -16,6 +16,7 @@ from typing_extensions import Self
 from titan_cli.client.models.action_class import ActionClass
 from titan_cli.client.models.chat_tool_call_event_status import ChatToolCallEventStatus
 from titan_cli.client.models.domain import Domain
+from titan_cli.client.models.mode import Mode
 
 T = TypeVar("T", bound="ChatToolCallEvent")
 
@@ -41,6 +42,7 @@ class ChatToolCallEvent:
             action_class (ActionClass): How much a call can change, which sets its default mode (decision #38).
 
                 A user can change the mode of one class in one domain (decision #10).
+            mode (Mode): What happens when the agent calls a tool (autonomy spec, modes).
     """
 
     name: str
@@ -50,6 +52,7 @@ class ChatToolCallEvent:
     entry_id: UUID
     domain: Domain
     action_class: ActionClass
+    mode: Mode
     type_: Literal["tool_call"] = "tool_call"
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -70,6 +73,8 @@ class ChatToolCallEvent:
 
         action_class = self.action_class.value
 
+        mode = self.mode.value
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -82,6 +87,7 @@ class ChatToolCallEvent:
                 "entry_id": entry_id,
                 "domain": domain,
                 "action_class": action_class,
+                "mode": mode,
             }
         )
 
@@ -108,6 +114,8 @@ class ChatToolCallEvent:
 
         action_class = ActionClass(d.pop("action_class"))
 
+        mode = Mode(d.pop("mode"))
+
         chat_tool_call_event = cls(
             type_=type_,
             name=name,
@@ -117,6 +125,7 @@ class ChatToolCallEvent:
             entry_id=entry_id,
             domain=domain,
             action_class=action_class,
+            mode=mode,
         )
 
         chat_tool_call_event.additional_properties = d

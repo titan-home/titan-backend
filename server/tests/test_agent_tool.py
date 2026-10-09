@@ -65,7 +65,7 @@ async def entries(context: ToolContext) -> list[AuditEntry]:
     return list(await context.session.scalars(select(AuditEntry)))
 
 
-def echo_record(entry: AuditEntry, status: str) -> dict[str, Any]:
+def echo_record(entry: AuditEntry, status: str, mode: str = "auto") -> dict[str, Any]:
     """The record a reply keeps of a call of ECHO (decision #119)."""
     return {
         "name": "echo",
@@ -75,6 +75,7 @@ def echo_record(entry: AuditEntry, status: str) -> dict[str, Any]:
         "entry_id": str(entry.id),
         "domain": "tasks",
         "action_class": "read",
+        "mode": mode,
     }
 
 
@@ -184,7 +185,7 @@ async def test_a_call_that_needs_approval_does_not_run_and_waits(
     [entry] = await entries(context)
     assert (entry.mode, entry.status) == (Mode.CONFIRM, EntryStatus.PENDING)
     # Decision #119: a call that waits is in the reply too.
-    assert context.calls == [echo_record(entry, "pending")]
+    assert context.calls == [echo_record(entry, "pending", "confirm")]
     assert entry.domain == Domain.TASKS
     # The model is told the call is waiting, which is not an error.
     assert not result.get("is_error")
@@ -203,7 +204,7 @@ async def test_a_denied_call_does_not_run_and_the_model_is_told(
     [entry] = await entries(context)
     assert (entry.mode, entry.status) == (Mode.DENY, EntryStatus.DENIED)
     # Decision #119: a call that is not allowed is in the reply too.
-    assert context.calls == [echo_record(entry, "denied")]
+    assert context.calls == [echo_record(entry, "denied", "deny")]
     assert entry.domain == Domain.TASKS
     assert result["is_error"] is True
     assert "not allowed" in result["content"][0]["text"]

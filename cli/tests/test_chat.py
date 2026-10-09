@@ -18,6 +18,7 @@ from titan_cli.client.models import (
     ChatToolCallEvent,
     ChatToolCallEventStatus,
     Domain,
+    Mode,
 )
 from titan_cli.main import main
 from titan_cli.node import CliError
@@ -38,12 +39,13 @@ CALL_FIELDS: dict[str, object] = {
     "entry_id": str(ENTRY_ID),
     "domain": "tasks",
     "action_class": "write-internal",
+    "mode": "auto",
 }
 CALL_LINE = f"data: {json.dumps(CALL_FIELDS)}"
 
 
-def call(status: ChatToolCallEventStatus) -> ChatToolCallEvent:
-    """A call of create_task with the status (decision #119)."""
+def call(status: ChatToolCallEventStatus, mode: Mode = Mode.AUTO) -> ChatToolCallEvent:
+    """A call of create_task with the status (decision #119) and the mode."""
     return ChatToolCallEvent(
         name="create_task",
         summary="Buy milk",
@@ -52,6 +54,7 @@ def call(status: ChatToolCallEventStatus) -> ChatToolCallEvent:
         entry_id=ENTRY_ID,
         domain=Domain.TASKS,
         action_class=ActionClass.WRITE_INTERNAL,
+        mode=mode,
     )
 
 
@@ -205,6 +208,25 @@ def test_a_tool_call_shows_its_status(
 ) -> None:
     """Decision #119: a call that waits says how to approve it."""
     print_reply([call(status), DONE])
+
+    assert capsys.readouterr().out == f"{line}\n"
+
+
+@pytest.mark.parametrize(
+    ("mode", "line"),
+    [
+        (Mode.AUTO_UNDO, f"· create_task: Buy milk ✓ undo: titan undo {ENTRY_ID}"),
+        # Shows only in the audit log (autonomy spec, modes 1).
+        (Mode.AUTO, "· create_task: Buy milk ✓"),
+        # Approved: undone from the log.
+        (Mode.CONFIRM, "· create_task: Buy milk ✓"),
+    ],
+)
+def test_a_done_call_in_auto_undo_says_how_to_undo_it(
+    capsys: pytest.CaptureFixture[str], mode: Mode, line: str
+) -> None:
+    """Decision #139: the Undo of decision #37, in the terminal."""
+    print_reply([call(ChatToolCallEventStatus.DONE, mode), DONE])
 
     assert capsys.readouterr().out == f"{line}\n"
 

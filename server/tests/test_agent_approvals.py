@@ -117,6 +117,7 @@ async def assert_thread_told_failed(
             "entry_id": str(entry.id),
             "domain": "tasks",
             "action_class": "write-internal",
+            "mode": "confirm",
         }
     ]
 
@@ -191,6 +192,7 @@ async def test_a_failed_call_is_failed_and_keeps_no_changes(
             "entry_id": str(entry.id),
             "domain": "tasks",
             "action_class": "write-internal",
+            "mode": "confirm",
         }
     ]
 
@@ -235,6 +237,7 @@ async def test_the_thread_gets_approved_done(session: AsyncSession) -> None:
             "entry_id": str(entry.id),
             "domain": "tasks",
             "action_class": "write-internal",
+            "mode": "confirm",
         }
     ]
 
