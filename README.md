@@ -25,8 +25,8 @@ its action class, `titan policy` sets a user's own mode per domain, and
 `titan approvals`, `titan approve` and `titan reject` decide the calls that
 wait for approval, which expire when nobody decides them; `titan undo`
 takes an action back from its audit entry, whose id `titan chat` prints
-after a call that can be undone, and the list of the log comes next. See the
-[build plan](shared/docs/roadmap/plan.md).
+after a call that can be undone, and `titan log` lists the log, newest
+first. See the [build plan](shared/docs/roadmap/plan.md).
 
 ## Layout
 
