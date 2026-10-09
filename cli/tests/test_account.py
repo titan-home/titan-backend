@@ -159,6 +159,36 @@ def test_any_other_refusal_is_reported_and_saves_nothing(
     assert not login_file(config_home).exists()
 
 
+@pytest.mark.parametrize(
+    ("retry_after", "wait"),
+    [("780", "13 minutes"), ("781", "14 minutes"), ("1", "1 minute")],
+)
+def test_too_many_failures_tell_how_long_to_wait(
+    monkeypatch: pytest.MonkeyPatch, config_home: Path, retry_after: str, wait: str
+) -> None:
+    """Accounts spec, guessing limit 3: 429 with Retry-After, in minutes."""
+    too_many = {"type": "about:blank", "title": "Too Many Requests", "status": 429}
+    serve(
+        monkeypatch,
+        lambda request: httpx.Response(
+            429,
+            json=too_many,
+            headers={
+                "Content-Type": "application/problem+json",
+                "Retry-After": retry_after,
+            },
+        ),
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(["login", NODE, "--name", "laptop"])
+
+    assert exit_info.value.code == (
+        f"titan: too many failed sign-ins from this address; try again in {wait}"
+    )
+    assert not login_file(config_home).exists()
+
+
 @pytest.mark.parametrize("handler", [paired, refused])
 def test_the_password_is_never_printed(
     monkeypatch: pytest.MonkeyPatch,

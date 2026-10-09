@@ -5,8 +5,10 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from titan_api import v1
+from titan_api.guessing import GuessingLimit, trusted_proxies
 from titan_api.problems import add_problem_handlers, with_problems
 from titan_core.db import create_engine
 
@@ -39,6 +41,11 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         """Tell the controller the API is up."""
         return {"status": "ok"}
+
+    # The client's address, which the guessing limit counts by, comes from
+    # X-Forwarded-For only when the connection is from one of our own proxies.
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted_proxies())
+    app.state.guessing_limit = GuessingLimit()
 
     add_problem_handlers(app)
     app.include_router(v1.router)
