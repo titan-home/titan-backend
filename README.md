@@ -32,7 +32,9 @@ first. See the [build plan](shared/docs/roadmap/plan.md).
 
 | Folder | Package | Runs on |
 |---|---|---|
-| `server/` | `titan-server`: api, worker, domains, agent, admin commands | The node, in containers |
+| `server/core/` | `titan-core`: the database, the domains and the migrations, shared by the server packages | The node, inside each image |
+| `server/api/` | `titan-api`: the HTTP API and the agent | The node, in the `api` image |
+| `server/admin/` | `titan-admin`: the commands run on the node, the migrations among them | The node, in the `admin` image |
 | `cli/` | `titan-cli`: the `titan` command | The owner's machines |
 
 ## Development
@@ -40,7 +42,7 @@ first. See the [build plan](shared/docs/roadmap/plan.md).
 Needs [uv](https://docs.astral.sh/uv/). Then:
 
 ```sh
-uv sync              # install both packages and the dev tools
+uv sync              # install every package and the dev tools
 uv run pytest        # tests
 uv run titan --help  # the CLI
 ```
@@ -119,8 +121,8 @@ api reads:
 | `TITAN_DEFAULT_MAX_MESSAGE_LENGTH` | The longest chat message a user may send, in characters, unless the user set their own limit; 20000 unless set |
 
 Claude Code starts with only the variables it needs, never the api's own
-(`agent/clean_claude.py`). The regular tests never call Claude; they play
-it with scripted replies.
+(`server/api/src/titan_api/agent/clean_claude.py`). The regular tests never
+call Claude; they play it with scripted replies.
 
 ### Paged lists
 

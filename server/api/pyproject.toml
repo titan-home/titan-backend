@@ -1,0 +1,18 @@
+[project]
+name = "titan-api"
+version = "0.1.0"
+description = "The TITAN HTTP API and the agent that run on the node."
+requires-python = ">=3.12"
+dependencies = [
+    "claude-agent-sdk>=0.2.157",
+    "fastapi",
+    "titan-core",
+    "uvicorn",
+]
+
+[tool.uv.sources]
+titan-core = { workspace = true }
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"

@@ -1,0 +1,16 @@
+[project]
+name = "titan-core"
+version = "0.1.0"
+description = "The TITAN database, domains and migrations that every node process shares."
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20.0",
+    "argon2-cffi>=25.1.0",
+    "psycopg[binary]>=3.3.6",
+    "pydantic>=2.13.5",
+    "sqlalchemy[asyncio]>=2.0.54",
+]
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
