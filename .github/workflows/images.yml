@@ -1,0 +1,82 @@
+name: images
+
+# Publishes each process's image to ghcr.io on a version tag (decisions
+# #143-#147); a pull request only builds them, so the workflow is tried before
+# a tag.
+on:
+  pull_request:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"] # vX.Y.Z, or a pre-release such as vX.Y.Z-rc.1
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: titan-${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        # The Dockerfile's target of each image, and what the image runs.
+        include:
+          - target: api
+            description: "The TITAN api: the HTTP API, the agent and its tools"
+          - target: admin
+            description: "TITAN's admin commands run on the node: migrations, creating the owner"
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io
+      id-token: write # sign the attestation
+      attestations: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Derive the image's tags and labels from the git tag
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/titan-home/titan-${{ matrix.target }}
+          # Only the version: nodes pin images by digest, so no moving tag
+          # such as latest.
+          flavor: latest=false
+          # A pull request's build gets a pr-<number> tag that is never pushed.
+          tags: |
+            type=semver,pattern={{version}}
+            type=ref,event=pr
+          labels: |
+            org.opencontainers.image.title=titan-${{ matrix.target }}
+            org.opencontainers.image.description=${{ matrix.description }}
+      - name: Set up Buildx, which the layer cache needs
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Sign in to ghcr.io
+        if: github.event_name == 'push'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build, and push on a tag
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: ${{ github.event_name == 'push' }}
+          # BuildKit's own provenance would put the whole GitHub event, with
+          # the pusher's email, into the public image and wrap it in an index;
+          # the attestation below is the provenance (decision #144).
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,scope=${{ matrix.target }},mode=max
+      - name: Attest that the image was built from this commit
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/titan-home/titan-${{ matrix.target }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+          # The storage record needs one more permission and nothing reads it.
+          create-storage-record: false
