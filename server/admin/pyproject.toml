@@ -1,0 +1,16 @@
+[project]
+name = "titan-admin"
+version = "0.1.0"
+description = "The TITAN commands run on the node itself, migrations among them."
+requires-python = ">=3.12"
+dependencies = ["titan-core"]
+
+[project.scripts]
+titan-admin = "titan_admin.main:main"
+
+[tool.uv.sources]
+titan-core = { workspace = true }
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"

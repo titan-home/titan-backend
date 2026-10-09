@@ -19,10 +19,15 @@ repository; change `titan-shared` through its own pull request.
 - Python 3.12+ with `uv`; `ruff format`, `ruff check`, `mypy --strict`, `pytest` (database tests against real PostgreSQL).
 - The API must serve exactly the contract in `shared/contracts/`.
 
-Two packages in one uv workspace ([decision #85](shared/docs/decisions/README.md#register)):
-`server/` is `titan-server` (api, worker, domains, agent, admin commands on
-the node), `cli/` is `titan-cli` (the `titan` command, an HTTP client only).
-`titan-cli` never imports `titan-server`.
+A package per process in one uv workspace ([decision #85](shared/docs/decisions/README.md#register)):
+`server/core/` is `titan-core` (the database, the domains and the
+migrations), `server/api/` is `titan-api` (the HTTP API and the agent),
+`server/admin/` is `titan-admin` (the commands run on the node, the
+migrations among them), and `cli/` is `titan-cli` (the `titan` command, an
+HTTP client only). `titan-api` and `titan-admin` each depend on `titan-core`;
+`titan-core` never imports either of them, and `titan-admin` never imports
+`titan-api` (`server/core/tests/test_layers.py`). Each image installs only
+its own package and the core. `titan-cli` never imports any server package.
 Its API client in `cli/src/titan_cli/client/` is generated from the contract
 ([decision #93](shared/docs/decisions/README.md#register)); never edit it by hand.
 
@@ -33,7 +38,7 @@ Its API client in `cli/src/titan_cli/client/` is generated from the contract
 | Types | `uv run mypy` |
 | Tests | `uv run pytest` |
 | Run the CLI | `uv run titan` |
-| Export the API contract into `titan-shared` | `uv run python -m titan_server.api.contract > ../titan-shared/contracts/openapi.json` |
+| Export the API contract into `titan-shared` | `uv run python -m titan_api.contract > ../titan-shared/contracts/openapi.json` |
 | Regenerate the CLI's API client from `shared/contracts/` | `uv run openapi-python-client generate --meta none --fail-on-warning --path shared/contracts/openapi.json --config cli/openapi-client.yaml --output-path cli/src/titan_cli/client --overwrite` |
 | Write a migration from the models | `uv run alembic revision --autogenerate -m "..."` |
 | Start api and PostgreSQL (needs Docker) | `docker compose up --build --wait` |
@@ -67,7 +72,7 @@ The commands are settled as the code arrives.
 3. `uv run pytest` passes for the packages the commit touches (by path or
    `-k`); database tests need a running PostgreSQL. The full suite runs in CI.
 4. If the API changed: the contract check against `shared/contracts/` passes:
-   `uv run pytest server/tests/test_contract.py`.
+   `uv run pytest server/api/tests/test_contract.py`.
 5. If a migration was added: it applies to a fresh database and to one at the
    previous version.
 6. If a tool changed: its access-check and undo tests pass.

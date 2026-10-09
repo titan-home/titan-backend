@@ -1,7 +1,8 @@
-# The uv workspace: titan-server runs on the node, titan-cli on the owner's
-# machines (decision #85).
+# The uv workspace: a package per node process, titan-api and titan-admin,
+# each on the shared titan-core; titan-cli runs on the owner's machines
+# (decision #85).
 [tool.uv.workspace]
-members = ["server", "cli"]
+members = ["server/core", "server/api", "server/admin", "cli"]
 
 [tool.uv]
 # New versions wait 14 days before we take them (development rules, section 11).
@@ -19,7 +20,7 @@ extend-exclude = ["shared", "cli/src/titan_cli/client"]
 select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["titan_server", "titan_cli"]
+known-first-party = ["titan_core", "titan_api", "titan_admin", "titan_cli"]
 
 [tool.ruff.lint.per-file-ignores]
 "*/tests/*" = ["S101", "S105", "S106", "S107"]
@@ -29,7 +30,7 @@ strict = true
 # --strict leaves out the check for a variable that may be unset.
 enable_error_code = ["possibly-undefined"]
 files = ["server", "cli"]
-mypy_path = ["server/src", "cli/src"]
+mypy_path = ["server/core/src", "server/api/src", "server/admin/src", "cli/src"]
 explicit_package_bases = true
 
 # The API client is generated (decision #93); its own code is not ours to fix,
@@ -39,15 +40,15 @@ module = "titan_cli.client.*"
 ignore_errors = true
 
 [tool.pytest.ini_options]
-testpaths = ["server/tests", "cli/tests"]
+testpaths = ["server/core/tests", "server/api/tests", "server/admin/tests", "cli/tests"]
 addopts = ["--import-mode=importlib"]
 
 
 # Alembic for development: `uv run alembic revision --autogenerate -m "..."`.
 # The node runs migrations with `titan-admin migrate`, which needs no config
-# file (see titan_server.db.alembic_config).
+# file (see titan_core.db.alembic_config).
 [tool.alembic]
-script_location = "%(here)s/server/src/titan_server/migrations"
+script_location = "%(here)s/server/core/src/titan_core/migrations"
 # The date sorts the files by creation; the order of applying them comes
 # from down_revision inside each file.
 file_template = "%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s"

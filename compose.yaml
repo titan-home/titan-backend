@@ -3,7 +3,7 @@
 
 services:
   api:
-    build: .
+    build: {context: ., target: api}
     read_only: true
     # Each chat turn gives Claude Code a temporary HOME under /tmp; on tmpfs
     # its transcript never reaches a disk (development rules, section 14).
@@ -21,7 +21,7 @@ services:
 
   # Applies pending migrations, then exits; the api starts only after it.
   migrate:
-    build: .
+    build: {context: ., target: admin}
     command: ["titan-admin", "migrate"]
     read_only: true
     mem_limit: 256m

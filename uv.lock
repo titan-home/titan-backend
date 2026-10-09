@@ -13,8 +13,10 @@ exclude-newer-span = "P14D"
 
 [manifest]
 members = [
+    "titan-admin",
+    "titan-api",
     "titan-cli",
-    "titan-server",
+    "titan-core",
 ]
 
 [manifest.dependency-groups]
@@ -1435,6 +1437,36 @@ wheels = [
 ]
 
 [[package]]
+name = "titan-admin"
+version = "0.1.0"
+source = { editable = "server/admin" }
+dependencies = [
+    { name = "titan-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "titan-core", editable = "server/core" }]
+
+[[package]]
+name = "titan-api"
+version = "0.1.0"
+source = { editable = "server/api" }
+dependencies = [
+    { name = "claude-agent-sdk" },
+    { name = "fastapi" },
+    { name = "titan-core" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "claude-agent-sdk", specifier = ">=0.2.157" },
+    { name = "fastapi" },
+    { name = "titan-core", editable = "server/core" },
+    { name = "uvicorn" },
+]
+
+[[package]]
 name = "titan-cli"
 version = "0.1.0"
 source = { editable = "cli" }
@@ -1452,28 +1484,24 @@ requires-dist = [
 ]
 
 [[package]]
-name = "titan-server"
+name = "titan-core"
 version = "0.1.0"
-source = { editable = "server" }
+source = { editable = "server/core" }
 dependencies = [
     { name = "alembic" },
     { name = "argon2-cffi" },
-    { name = "claude-agent-sdk" },
-    { name = "fastapi" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "pydantic" },
     { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.20.0" },
     { name = "argon2-cffi", specifier = ">=25.1.0" },
-    { name = "claude-agent-sdk", specifier = ">=0.2.157" },
-    { name = "fastapi" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
+    { name = "pydantic", specifier = ">=2.13.5" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.54" },
-    { name = "uvicorn" },
 ]
 
 [[package]]
