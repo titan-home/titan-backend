@@ -18,7 +18,7 @@ from titan_server.agent.turn import Ask, ReplyStored, TextDelta, ToolCalled, run
 from titan_server.api.dependencies import BackgroundSessions, CurrentDevice, Session
 from titan_server.api.problems import problems
 from titan_server.api.v1.approvals import expired_before
-from titan_server.domains.audit.models import ActionClass, Domain
+from titan_server.domains.audit.models import ActionClass, Domain, Mode
 from titan_server.domains.chat import service as chat
 from titan_server.domains.chat.models import Thread
 
@@ -97,6 +97,13 @@ class ChatToolCallEvent(ChatEventBase):
     entry_id: uuid.UUID
     domain: Domain
     action_class: ActionClass
+    # Every call the agent makes passes the policy, so it always has a mode.
+    mode: Mode = Field(
+        description=(
+            "The mode the policy ran the call in; a client shows an Undo for a"
+            " `done` call in `auto-undo` (decision #139)."
+        )
+    )
 
 
 class ChatDoneEvent(ChatEventBase):

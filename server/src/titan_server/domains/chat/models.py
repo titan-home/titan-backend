@@ -37,6 +37,9 @@ class ToolCallRecord(TypedDict):
     entry_id: NotRequired[str]
     domain: NotRequired[str]
     action_class: NotRequired[str]
+    # The mode the policy ran it in, None for an undo; a client shows an Undo
+    # for a done call in auto-undo (decision #139).
+    mode: NotRequired[str | None]
 
 
 class Thread(Base):

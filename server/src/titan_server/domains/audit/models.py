@@ -159,6 +159,7 @@ def call_record(entry: AuditEntry) -> ToolCallRecord:
         "entry_id": str(entry.id),
         "domain": entry.domain.value,
         "action_class": entry.action_class.value,
+        "mode": None if entry.mode is None else entry.mode.value,
     }
 
 

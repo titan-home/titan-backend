@@ -167,6 +167,7 @@ async def test_add_a_task_to_buy_milk(
             "entry_id": str(entry.id),
             "domain": "tasks",
             "action_class": "write-internal",
+            "mode": "auto-undo",
         },
         {"type": "text", "text": "Added "},
         {"type": "text", "text": "it."},

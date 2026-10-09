@@ -142,6 +142,7 @@ async def test_reject_sets_the_status_and_tells_the_thread(
             "entry_id": str(entry.id),
             "domain": "tasks",
             "action_class": "write-internal",
+            "mode": "confirm",
         }
     ]
 
