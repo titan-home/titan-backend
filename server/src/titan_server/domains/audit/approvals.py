@@ -8,7 +8,6 @@ at or before which a pending request is past its deadline. Whoever checks
 marks it expired and tells its thread.
 """
 
-import base64
 import uuid
 from datetime import datetime
 
@@ -16,6 +15,7 @@ from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_server.domains.audit.models import AuditEntry, EntryStatus, call_record
+from titan_server.domains.audit.paging import cursor, parse_cursor
 from titan_server.domains.chat import service as chat
 
 
@@ -123,19 +123,6 @@ async def _tell_thread(
         await chat.add_reply(session, thread, text, [call_record(entry)], None)
 
 
-def _cursor(entry: AuditEntry) -> str:
-    """The opaque cursor after entry: its time and id (decision #124)."""
-    raw = f"{entry.created_at.isoformat()}|{entry.id}"
-    return base64.urlsafe_b64encode(raw.encode()).decode()
-
-
-def _parse_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
-    """The time and id a cursor holds; raises ValueError for anything else."""
-    # Every failure here, from bad base64 to a bad UUID, is a ValueError.
-    created_at, entry_id = base64.urlsafe_b64decode(cursor.encode()).decode().split("|")
-    return datetime.fromisoformat(created_at), uuid.UUID(entry_id)
-
-
 # NOTE: a request whose turn commits after a client's cursor has passed its
 # created_at is missed in that paging run and shows on the next listing;
 # fine while one user rarely runs two turns at once.
@@ -168,10 +155,10 @@ async def list_pending(
     )
     if after is not None:
         query = query.where(
-            tuple_(AuditEntry.created_at, AuditEntry.id) > _parse_cursor(after)
+            tuple_(AuditEntry.created_at, AuditEntry.id) > parse_cursor(after)
         )
     entries = list(await session.scalars(query))
     if len(entries) <= limit:
         return entries, None
     page = entries[:limit]
-    return page, _cursor(page[-1])
+    return page, cursor(page[-1])
